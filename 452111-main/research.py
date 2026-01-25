@@ -1482,7 +1482,12 @@ def _analyze_promise_keeping(messages: List[str], actions: List[Action]) -> floa
     kept_count = 0
     promise_count = 0
 
-    cooperation_keywords = ["合作", "cooperate", "trust", "信任", "一起"]
+    cooperation_keywords = [
+        # 中文
+        "合作", "信任", "一起", "承诺", "同意", "友好", "互惠", "双赢", "携手",
+        # 英文
+        "cooperate", "trust", "together", "promise", "agree", "mutual", "collaborate", "friendly",
+    ]
 
     for msg, action in zip(messages, actions):
         if msg and any(kw in msg.lower() for kw in cooperation_keywords):
