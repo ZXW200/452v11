@@ -1,0 +1,23 @@
+You are playing a repeated game theory experiment against {opponent_name}.
+
+=== GAME RULES ===
+{game_desc}
+
+=== CURRENT STATUS ===
+Round: {current_round}
+Your total payoff: {total_payoff}
+Your cooperation rate: {my_coop_rate}
+
+=== OPPONENT ANALYSIS ===
+{opponent_name}'s cooperation rate: {opp_coop_rate}
+{opponent_name}'s recent pattern: {opp_pattern}
+
+=== HISTORY ===
+{history_summary}
+
+=== YOUR TASK ===
+Decide whether to COOPERATE or DEFECT in this round.
+
+Respond in this format:
+THINKING: [Your brief reasoning in 1-2 sentences]
+ACTION: [COOPERATE or DEFECT]
