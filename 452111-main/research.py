@@ -6,7 +6,8 @@ Game Theory LLM Multi-Agent Research Experiments
 1. Pure vs Hybrid - LLM自己分析 vs 代码辅助
 2. 记忆视窗对比 - 5/10/20/全部历史
 3. 多LLM对比 - DeepSeek vs GPT vs Gemini
-4. Cheap Talk - 语言交流博弈
+4. Cheap Talk 三方对战 - 3个LLM Round-Robin 语言交流博弈
+4b. Cheap Talk 一对一 - 指定双方LLM的语言交流博弈
 5. 群体动力学 - 多人混合群体
 6. Baseline 对比 - LLM vs 经典策略
 
@@ -849,10 +850,371 @@ def _print_multi_llm_summary(results: Dict):
 
 
 # ============================================================
-# 实验4: Cheap Talk (语言交流)
+# 实验4: Cheap Talk 三方对战 (3 LLM Round-Robin)
 # ============================================================
 
 def experiment_cheap_talk(
+    result_manager: ResultManager,
+    providers: List[str] = ["deepseek", "openai", "gemini"],
+    n_repeats: int = DEFAULT_CONFIG["n_repeats"],
+    rounds: int = DEFAULT_CONFIG["rounds"],
+    games: List[str] = None,
+) -> Dict:
+    """Cheap Talk 实验 - 3个LLM Round-Robin 对战"""
+
+    if games is None:
+        games = list(GAME_REGISTRY.keys())
+
+    print_separator("实验4: Cheap Talk 三方对战 (3 LLM)")
+    print("对比: 无交流 vs 有语言交流 (Round-Robin)")
+    print(f"Providers: {providers} | Repeats: {n_repeats} | Rounds: {rounds}")
+
+    all_results = {}
+
+    for game_name in games:
+        game_config = GAME_REGISTRY[game_name]
+        print_game_header(game_name)
+
+        # 生成所有配对 (round-robin)
+        pairs = []
+        for i in range(len(providers)):
+            for j in range(i + 1, len(providers)):
+                pairs.append((providers[i], providers[j]))
+
+        results = {"no_talk": {}, "cheap_talk": {}}
+        coop_rates = {"no_talk": {}, "cheap_talk": {}}
+        promise_kept = {}
+        all_round_records = []
+
+        # 初始化每个provider的统计
+        for provider in providers:
+            results["no_talk"][provider] = []
+            results["cheap_talk"][provider] = []
+            coop_rates["no_talk"][provider] = []
+            coop_rates["cheap_talk"][provider] = []
+            promise_kept[provider] = []
+
+        detailed_trials = {"no_talk": [], "cheap_talk": []}
+
+        for mode in ["no_talk", "cheap_talk"]:
+            print(f"\n  Mode: {mode}")
+
+            for trial in range(n_repeats):
+                print(f"    Trial {trial + 1}/{n_repeats}...", end=" ", flush=True)
+
+                try:
+                    use_cheap_talk = (mode == "cheap_talk")
+
+                    # 创建3个LLM策略
+                    llms = {}
+                    for provider in providers:
+                        llms[provider] = LLMStrategy(
+                            provider=provider,
+                            mode="hybrid",
+                            game_config=game_config,
+                            enable_cheap_talk=use_cheap_talk,
+                            agent_name=f"Player({provider})",
+                        )
+
+                    # 每个provider的累计数据
+                    total_payoffs = {p: 0 for p in providers}
+                    histories = {p: [] for p in providers}
+                    messages = {p: [] for p in providers}
+
+                    round_details = []
+
+                    for r in range(rounds):
+                        round_data = {"round": r + 1, "matches": []}
+
+                        # 每轮进行所有配对的对战
+                        for p1, p2 in pairs:
+                            llm1 = llms[p1]
+                            llm2 = llms[p2]
+
+                            # 生成消息（如果启用cheap talk）
+                            msg1 = ""
+                            msg2 = ""
+                            if use_cheap_talk:
+                                if hasattr(llm1, 'generate_message'):
+                                    msg1 = llm1.generate_message(histories[p1], histories[p2], p2)
+                                if hasattr(llm2, 'generate_message'):
+                                    msg2 = llm2.generate_message(histories[p2], histories[p1], p1)
+
+                            # 选择动作
+                            action1 = llm1.choose_action(histories[p1], histories[p2], p2, opponent_message=msg2)
+                            action2 = llm2.choose_action(histories[p2], histories[p1], p1, opponent_message=msg1)
+
+                            payoff1, payoff2 = get_payoff(game_config, action1, action2)
+                            total_payoffs[p1] += payoff1
+                            total_payoffs[p2] += payoff2
+
+                            # 记录本次对战
+                            match_data = {
+                                "pair": f"{p1}_vs_{p2}",
+                                "p1": p1,
+                                "p2": p2,
+                                "p1_message": msg1,
+                                "p2_message": msg2,
+                                "p1_action": action1.name,
+                                "p2_action": action2.name,
+                                "p1_payoff": payoff1,
+                                "p2_payoff": payoff2,
+                            }
+                            round_data["matches"].append(match_data)
+
+                            # 记录到总记录
+                            all_round_records.append({
+                                "mode": mode,
+                                "trial": trial + 1,
+                                "round": r + 1,
+                                "pair": f"{p1}_vs_{p2}",
+                                "p1": p1,
+                                "p2": p2,
+                                "p1_message": msg1,
+                                "p2_message": msg2,
+                                "p1_action": action1.name,
+                                "p2_action": action2.name,
+                                "p1_payoff": payoff1,
+                                "p2_payoff": payoff2,
+                            })
+
+                        # 更新历史（每轮结束后更新）
+                        for p1, p2 in pairs:
+                            # 找到对应的match数据来更新历史
+                            for match in round_data["matches"]:
+                                if match["p1"] == p1 and match["p2"] == p2:
+                                    histories[p1].append(Action[match["p1_action"]])
+                                    histories[p2].append(Action[match["p2_action"]])
+                                    if use_cheap_talk:
+                                        if match["p1_message"]:
+                                            messages[p1].append(match["p1_message"])
+                                        if match["p2_message"]:
+                                            messages[p2].append(match["p2_message"])
+                                    break
+
+                        round_details.append(round_data)
+
+                    # 计算每个provider的合作率
+                    coop_rate_dict = {}
+                    for provider in providers:
+                        coop_rate = compute_cooperation_rate(histories[provider])
+                        results[mode][provider].append(total_payoffs[provider])
+                        coop_rates[mode][provider].append(coop_rate)
+                        coop_rate_dict[provider] = coop_rate
+
+                        # 分析承诺遵守
+                        if use_cheap_talk and messages[provider]:
+                            kept = _analyze_promise_keeping(messages[provider], histories[provider])
+                            promise_kept[provider].append(kept)
+
+                    # 记录trial数据
+                    trial_record = {
+                        "trial": trial + 1,
+                        "payoffs": total_payoffs.copy(),
+                        "coop_rates": coop_rate_dict,
+                        "total_social_payoff": sum(total_payoffs.values()),
+                        "rounds": round_details,
+                    }
+                    detailed_trials[mode].append(trial_record)
+
+                    # 打印结果
+                    total_social = sum(total_payoffs.values())
+                    avg_coop = sum(coop_rate_dict.values()) / len(coop_rate_dict)
+                    print(f"Social: {total_social:.1f}, Avg coop: {avg_coop:.1%}")
+
+                except Exception as e:
+                    print(f"Error: {e}")
+                    continue
+
+        # 计算统计结果
+        game_results = {}
+        for mode in ["no_talk", "cheap_talk"]:
+            mode_results = {"providers": {}}
+            total_payoffs_all = []
+            for provider in providers:
+                mode_results["providers"][provider] = {
+                    "payoff": compute_statistics(results[mode][provider]),
+                    "coop_rate": compute_statistics(coop_rates[mode][provider]),
+                }
+                total_payoffs_all.extend(results[mode][provider])
+
+            # 计算社会总收益
+            social_payoffs = [sum(t["payoffs"].values()) for t in detailed_trials[mode]]
+            mode_results["social_payoff"] = compute_statistics(social_payoffs)
+
+            # 添加承诺遵守统计（仅cheap_talk模式）
+            if mode == "cheap_talk":
+                for provider in providers:
+                    if promise_kept[provider]:
+                        mode_results["providers"][provider]["promise_kept"] = compute_statistics(promise_kept[provider])
+
+            game_results[mode] = mode_results
+
+        all_results[game_name] = game_results
+
+        # 保存结果
+        result_manager.save_json(game_name, "cheap_talk_3llm", game_results)
+        result_manager.save_round_records("cheap_talk_3llm", game_name, "3llm", all_round_records)
+
+        # 生成transcript
+        transcript = _generate_cheap_talk_3llm_transcript(game_name, providers, detailed_trials)
+        result_manager.save_transcript(game_name, "cheap_talk_3llm", transcript)
+
+        # 生成图表
+        fig = _plot_cheap_talk_3llm(game_results, game_name, providers)
+        if fig:
+            result_manager.save_figure(game_name, "cheap_talk_3llm", fig)
+
+    _print_cheap_talk_3llm_summary(all_results, providers)
+    result_manager.save_experiment_summary("cheap_talk_3llm", all_results)
+
+    return all_results
+
+
+def _generate_cheap_talk_3llm_transcript(game_name: str, providers: List[str], detailed_trials: Dict) -> str:
+    """生成3 LLM Cheap Talk 交互记录"""
+    cn_name = GAME_NAMES_CN.get(game_name, game_name)
+
+    lines = []
+    lines.append("=" * 70)
+    lines.append(f"CHEAP TALK 三方对战实验记录 - {cn_name}")
+    lines.append(f"Providers: {', '.join(providers)}")
+    lines.append(f"对战模式: 3 LLM Round-Robin")
+    lines.append("=" * 70)
+    lines.append("")
+
+    for mode in ["no_talk", "cheap_talk"]:
+        mode_name = "无交流模式 (No Talk)" if mode == "no_talk" else "有交流模式 (Cheap Talk)"
+        lines.append("-" * 70)
+        lines.append(f"【{mode_name}】")
+        lines.append("-" * 70)
+
+        for trial_data in detailed_trials[mode]:
+            trial_num = trial_data["trial"]
+            payoffs = trial_data.get("payoffs", {})
+            coop_rates = trial_data.get("coop_rates", {})
+            total_social = trial_data.get("total_social_payoff", 0)
+
+            lines.append("")
+            lines.append(f">>> Trial {trial_num}")
+            lines.append(f"    社会总收益: {total_social:.1f}")
+            for p in providers:
+                lines.append(f"    {p}: 得分={payoffs.get(p, 0):.1f}, 合作率={coop_rates.get(p, 0):.1%}")
+            lines.append("")
+
+            for rd in trial_data.get("rounds", []):
+                round_num = rd["round"]
+                lines.append(f"  Round {round_num:2d}:")
+                for match in rd.get("matches", []):
+                    p1, p2 = match["p1"], match["p2"]
+                    p1_msg = match.get("p1_message", "")
+                    p2_msg = match.get("p2_message", "")
+                    p1_action = match.get("p1_action", "")
+                    p2_action = match.get("p2_action", "")
+                    p1_payoff = match.get("p1_payoff", 0)
+                    p2_payoff = match.get("p2_payoff", 0)
+
+                    lines.append(f"    [{p1} vs {p2}]")
+                    if p1_msg:
+                        lines.append(f"      {p1} says: \"{p1_msg}\"")
+                    if p2_msg:
+                        lines.append(f"      {p2} says: \"{p2_msg}\"")
+                    p1_symbol = "合作" if p1_action == "COOPERATE" else "背叛"
+                    p2_symbol = "合作" if p2_action == "COOPERATE" else "背叛"
+                    lines.append(f"      {p1}: {p1_symbol} | {p2}: {p2_symbol} | 得分: {p1_payoff}/{p2_payoff}")
+                lines.append("")
+
+        lines.append("")
+
+    lines.append("=" * 70)
+    lines.append("记录结束")
+    lines.append("=" * 70)
+
+    return "\n".join(lines)
+
+
+def _plot_cheap_talk_3llm(game_results: Dict, game_name: str, providers: List[str]) -> Optional[plt.Figure]:
+    """绘制3 LLM Cheap Talk 对比图"""
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    # 设置颜色
+    provider_colors = {
+        "deepseek": "#4CAF50",
+        "openai": "#2196F3",
+        "gemini": "#FF9800",
+    }
+
+    # 左图：各provider得分对比
+    ax1 = axes[0]
+    x = np.arange(len(providers))
+    width = 0.35
+
+    no_talk_means = [game_results["no_talk"]["providers"][p]["payoff"]["mean"] for p in providers]
+    no_talk_stds = [game_results["no_talk"]["providers"][p]["payoff"]["std"] for p in providers]
+    cheap_talk_means = [game_results["cheap_talk"]["providers"][p]["payoff"]["mean"] for p in providers]
+    cheap_talk_stds = [game_results["cheap_talk"]["providers"][p]["payoff"]["std"] for p in providers]
+
+    bars1 = ax1.bar(x - width/2, no_talk_means, width, yerr=no_talk_stds, label='No Talk', color='gray', alpha=0.7, capsize=5)
+    bars2 = ax1.bar(x + width/2, cheap_talk_means, width, yerr=cheap_talk_stds, label='Cheap Talk',
+                    color=[provider_colors.get(p, '#9C27B0') for p in providers], alpha=0.8, capsize=5)
+
+    ax1.set_ylabel('得分')
+    ax1.set_title('各 LLM 得分对比')
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(providers)
+    ax1.legend()
+
+    # 右图：合作率对比
+    ax2 = axes[1]
+    no_talk_coop = [game_results["no_talk"]["providers"][p]["coop_rate"]["mean"] * 100 for p in providers]
+    cheap_talk_coop = [game_results["cheap_talk"]["providers"][p]["coop_rate"]["mean"] * 100 for p in providers]
+
+    bars3 = ax2.bar(x - width/2, no_talk_coop, width, label='No Talk', color='gray', alpha=0.7)
+    bars4 = ax2.bar(x + width/2, cheap_talk_coop, width, label='Cheap Talk',
+                    color=[provider_colors.get(p, '#9C27B0') for p in providers], alpha=0.8)
+
+    ax2.set_ylabel('合作率 (%)')
+    ax2.set_title('各 LLM 合作率对比')
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(providers)
+    ax2.set_ylim(0, 105)
+    ax2.legend()
+
+    game_cn = GAME_NAMES_CN.get(game_name, game_name)
+    fig.suptitle(f"Cheap Talk 三方对战 - {game_cn}", fontsize=14)
+    plt.tight_layout()
+    return fig
+
+
+def _print_cheap_talk_3llm_summary(results: Dict, providers: List[str]):
+    """打印3 LLM Cheap Talk 汇总"""
+    print_separator("汇总: Cheap Talk 三方对战 (3 LLM)")
+
+    for game_name, stats in results.items():
+        cn_name = GAME_NAMES_CN.get(game_name, game_name)
+        print(f"\n{cn_name}:")
+
+        for mode in ["no_talk", "cheap_talk"]:
+            mode_name = "No Talk" if mode == "no_talk" else "Cheap Talk"
+            social = stats[mode]["social_payoff"]
+            print(f"\n  [{mode_name}] 社会总收益: {social['mean']:.1f} ± {social['std']:.1f}")
+
+            for provider in providers:
+                p_stats = stats[mode]["providers"][provider]
+                payoff = p_stats["payoff"]
+                coop = p_stats["coop_rate"]
+                print(f"    {provider}: {payoff['mean']:.1f} ± {payoff['std']:.1f}, Coop: {coop['mean']:.1%}")
+
+                if mode == "cheap_talk" and "promise_kept" in p_stats:
+                    pk = p_stats["promise_kept"]
+                    print(f"      承诺遵守: {pk['mean']:.1%}")
+
+
+# ============================================================
+# 实验4b: Cheap Talk 一对一 (1v1)
+# ============================================================
+
+def experiment_cheap_talk_1v1(
     result_manager: ResultManager,
     provider1: str = DEFAULT_CONFIG["provider"],
     provider2: str = None,
@@ -860,7 +1222,7 @@ def experiment_cheap_talk(
     rounds: int = DEFAULT_CONFIG["rounds"],
     games: List[str] = None,
 ) -> Dict:
-    """Cheap Talk 实验 - LLM vs LLM 双向交流，支持不同 provider 对战"""
+    """Cheap Talk 一对一实验 - LLM vs LLM 双向交流"""
 
     if provider2 is None:
         provider2 = provider1
@@ -868,7 +1230,7 @@ def experiment_cheap_talk(
     if games is None:
         games = list(GAME_REGISTRY.keys())
 
-    print_separator("实验4: Cheap Talk (语言交流)")
+    print_separator("实验4b: Cheap Talk 一对一 (1v1)")
     print("对比: 无交流 vs 有语言交流 (LLM vs LLM)")
     if provider1 == provider2:
         print(f"Provider: {provider1} vs {provider2} | Repeats: {n_repeats} | Rounds: {rounds}")
@@ -884,9 +1246,8 @@ def experiment_cheap_talk(
         results = {"no_talk": [], "cheap_talk": []}
         coop_rates = {"no_talk": {"player1": [], "player2": []}, "cheap_talk": {"player1": [], "player2": []}}
         promise_kept = {"player1": [], "player2": []}
-        all_round_records = []  # 收集所有轮次记录
+        all_round_records = []
 
-        # 详细记录：保存每轮的 message 和 action
         detailed_trials = {"no_talk": [], "cheap_talk": []}
 
         for mode in ["no_talk", "cheap_talk"]:
@@ -898,7 +1259,6 @@ def experiment_cheap_talk(
                 try:
                     use_cheap_talk = (mode == "cheap_talk")
 
-                    # 创建两个 LLM 策略（可以是不同 provider）
                     llm1 = LLMStrategy(
                         provider=provider1,
                         mode="hybrid",
@@ -922,11 +1282,9 @@ def experiment_cheap_talk(
                     messages_1 = []
                     messages_2 = []
 
-                    # 记录每轮的详细数据
                     round_details = []
 
                     for r in range(rounds):
-                        # 双方生成消息（如果启用cheap talk）
                         msg1 = ""
                         msg2 = ""
                         if use_cheap_talk:
@@ -937,7 +1295,6 @@ def experiment_cheap_talk(
                                 msg2 = llm2.generate_message(history_2, history_1, "Player1")
                                 messages_2.append(msg2)
 
-                        # 双方选择动作，传入对方的消息
                         action1 = llm1.choose_action(history_1, history_2, "Player2", opponent_message=msg2)
                         action2 = llm2.choose_action(history_2, history_1, "Player1", opponent_message=msg1)
 
@@ -948,7 +1305,6 @@ def experiment_cheap_talk(
                         history_1.append(action1)
                         history_2.append(action2)
 
-                        # 保存本轮详细记录
                         llm1_response = llm1.raw_responses[-1] if llm1.raw_responses else ""
                         llm2_response = llm2.raw_responses[-1] if llm2.raw_responses else ""
                         round_details.append({
@@ -963,7 +1319,6 @@ def experiment_cheap_talk(
                             "player2_cumulative": total_payoff_2,
                         })
 
-                        # 记录到总记录
                         all_round_records.append({
                             "mode": mode,
                             "trial": trial + 1,
@@ -980,13 +1335,12 @@ def experiment_cheap_talk(
 
                     coop_rate_1 = compute_cooperation_rate(history_1)
                     coop_rate_2 = compute_cooperation_rate(history_2)
-                    total_payoff = total_payoff_1 + total_payoff_2  # 社会总收益
+                    total_payoff = total_payoff_1 + total_payoff_2
 
                     results[mode].append(total_payoff)
                     coop_rates[mode]["player1"].append(coop_rate_1)
                     coop_rates[mode]["player2"].append(coop_rate_2)
 
-                    # 保存本次 trial 的完整记录
                     trial_record = {
                         "trial": trial + 1,
                         "player1_payoff": total_payoff_1,
@@ -1009,9 +1363,8 @@ def experiment_cheap_talk(
 
                     detailed_trials[mode].append(trial_record)
 
-                    # 保存详细数据（包含LLM思考过程）
                     detail_data = {
-                        "experiment": "cheap_talk",
+                        "experiment": "cheap_talk_1v1",
                         "game": game_name,
                         "mode": mode,
                         "trial": trial + 1,
@@ -1029,7 +1382,7 @@ def experiment_cheap_talk(
                         "player2_responses": llm2.raw_responses.copy(),
                     }
                     provider_label = f"{provider1}_vs_{provider2}" if provider1 != provider2 else provider1
-                    result_manager.save_detail(f"cheap_talk_{game_name}_{mode}", provider_label, trial + 1, rounds, detail_data)
+                    result_manager.save_detail(f"cheap_talk_1v1_{game_name}_{mode}", provider_label, trial + 1, rounds, detail_data)
 
                     avg_coop = (coop_rate_1 + coop_rate_2) / 2
                     print(f"Total: {total_payoff:.1f}, Avg coop: {avg_coop:.1%}")
@@ -1038,7 +1391,6 @@ def experiment_cheap_talk(
                     print(f"Error: {e}")
                     continue
 
-        # 计算统计结果
         game_results = {
             "no_talk": {
                 "total_payoff": compute_statistics(results["no_talk"]),
@@ -1056,46 +1408,39 @@ def experiment_cheap_talk(
 
         all_results[game_name] = game_results
 
-        # 保存统计结果
-        result_manager.save_json(game_name, "cheap_talk", game_results)
+        result_manager.save_json(game_name, "cheap_talk_1v1", game_results)
 
-        # 保存每轮记录
         provider_label = f"{provider1}_vs_{provider2}" if provider1 != provider2 else provider1
-        result_manager.save_round_records("cheap_talk", game_name, provider_label, all_round_records)
+        result_manager.save_round_records("cheap_talk_1v1", game_name, provider_label, all_round_records)
 
-        # 生成易读的 transcript 文本文件
-        transcript = _generate_cheap_talk_transcript(game_name, provider1, provider2, detailed_trials)
-        result_manager.save_transcript(game_name, "cheap_talk", transcript)
+        transcript = _generate_cheap_talk_1v1_transcript(game_name, provider1, provider2, detailed_trials)
+        result_manager.save_transcript(game_name, "cheap_talk_1v1", transcript)
 
-        # 生成图表 - 转换数据格式以适配 plot_cooperation_comparison
         plot_data = {}
         for mode_key in ["no_talk", "cheap_talk"]:
             mode_stats = game_results[mode_key]
-            # 计算平均合作率
             avg_coop_mean = (mode_stats["player1_coop_rate"]["mean"] + mode_stats["player2_coop_rate"]["mean"]) / 2
             avg_coop_std = (mode_stats["player1_coop_rate"]["std"] + mode_stats["player2_coop_rate"]["std"]) / 2
             plot_data[mode_key] = {
                 "payoff": mode_stats["total_payoff"],
                 "coop_rate": {"mean": avg_coop_mean, "std": avg_coop_std},
             }
-        fig = plot_cooperation_comparison(plot_data, "Cheap Talk 对比 (LLM vs LLM)", game_name)
-        result_manager.save_figure(game_name, "cheap_talk", fig)
+        fig = plot_cooperation_comparison(plot_data, "Cheap Talk 一对一 (1v1)", game_name)
+        result_manager.save_figure(game_name, "cheap_talk_1v1", fig)
 
-    _print_cheap_talk_summary(all_results)
-
-    # 保存实验汇总
-    result_manager.save_experiment_summary("cheap_talk", all_results)
+    _print_cheap_talk_1v1_summary(all_results)
+    result_manager.save_experiment_summary("cheap_talk_1v1", all_results)
 
     return all_results
 
 
-def _generate_cheap_talk_transcript(game_name: str, provider1: str, provider2: str, detailed_trials: Dict) -> str:
-    """生成易读的 Cheap Talk 交互记录 (LLM vs LLM)"""
+def _generate_cheap_talk_1v1_transcript(game_name: str, provider1: str, provider2: str, detailed_trials: Dict) -> str:
+    """生成一对一 Cheap Talk 交互记录"""
     cn_name = GAME_NAMES_CN.get(game_name, game_name)
 
     lines = []
     lines.append("=" * 70)
-    lines.append(f"CHEAP TALK 实验记录 - {cn_name}")
+    lines.append(f"CHEAP TALK 一对一实验记录 - {cn_name}")
     lines.append(f"Player1: {provider1} | Player2: {provider2}")
     lines.append(f"对战模式: LLM vs LLM (双向交流)")
     lines.append("=" * 70)
@@ -1138,13 +1483,11 @@ def _generate_cheap_talk_transcript(game_name: str, provider1: str, provider2: s
 
                 lines.append(f"  Round {round_num:2d}:")
 
-                # 显示双方消息
                 if p1_msg:
                     lines.append(f"    P1 says: \"{p1_msg}\"")
                 if p2_msg:
                     lines.append(f"    P2 says: \"{p2_msg}\"")
 
-                # 动作符号
                 p1_symbol = "合作" if p1_action == "COOPERATE" else "背叛"
                 p2_symbol = "合作" if p2_action == "COOPERATE" else "背叛"
 
@@ -1180,9 +1523,9 @@ def _analyze_promise_keeping(messages: List[str], actions: List[Action]) -> floa
     return kept_count / promise_count if promise_count > 0 else 1.0
 
 
-def _print_cheap_talk_summary(results: Dict):
-    """打印 Cheap Talk 汇总 (LLM vs LLM)"""
-    print_separator("汇总: Cheap Talk (LLM vs LLM)")
+def _print_cheap_talk_1v1_summary(results: Dict):
+    """打印一对一 Cheap Talk 汇总"""
+    print_separator("汇总: Cheap Talk 一对一 (1v1)")
 
     for game_name, stats in results.items():
         cn_name = GAME_NAMES_CN.get(game_name, game_name)
@@ -1191,7 +1534,6 @@ def _print_cheap_talk_summary(results: Dict):
         no_talk = stats["no_talk"]
         cheap_talk = stats["cheap_talk"]
 
-        # 计算平均合作率
         no_talk_avg_coop = (no_talk['player1_coop_rate']['mean'] + no_talk['player2_coop_rate']['mean']) / 2
         cheap_talk_avg_coop = (cheap_talk['player1_coop_rate']['mean'] + cheap_talk['player2_coop_rate']['mean']) / 2
 
@@ -1915,7 +2257,8 @@ def print_usage():
   pure_hybrid   - 实验1: Pure vs Hybrid LLM
   window        - 实验2: 记忆视窗对比
   multi_llm     - 实验3: 多 LLM 对比
-  cheap_talk    - 实验4: Cheap Talk 语言交流
+  cheap_talk    - 实验4: Cheap Talk 三方对战 (3 LLM Round-Robin)
+  cheap_talk_1v1- 实验4b: Cheap Talk 一对一 (支持指定双方 provider)
   group         - 实验5: 群体动力学（DeepSeek/OpenAI/Gemini 三模型）
   group_single  - 实验5: 群体动力学（单 Provider，需指定 --provider）
   baseline      - 实验6: Baseline 对比（DeepSeek/OpenAI/Gemini 三模型）
@@ -1923,8 +2266,8 @@ def print_usage():
 
 选项:
   --provider    LLM 提供商 (deepseek/openai/gemini)    [默认: deepseek]
-  --provider1   cheap_talk 实验的 Player1 模型         [默认: 同 --provider]
-  --provider2   cheap_talk 实验的 Player2 模型         [默认: 同 --provider]
+  --provider1   cheap_talk_1v1 实验的 Player1 模型     [默认: 同 --provider]
+  --provider2   cheap_talk_1v1 实验的 Player2 模型     [默认: 同 --provider]
   --repeats     重复次数                               [默认: 3]
   --rounds      每次轮数                               [默认: 20]
   --games       指定博弈 (pd/snowdrift/stag_hunt/harmony/all) [默认: all]
@@ -1953,7 +2296,8 @@ def print_usage():
   python research.py group --rounds 30 --n_agents 15
   python research.py all --provider openai --repeats 5
   python research.py baseline --games pd
-  python research.py cheap_talk --provider1 openai --provider2 gemini
+  python research.py cheap_talk                          # 3 LLM 三方对战
+  python research.py cheap_talk_1v1 --provider1 openai --provider2 gemini  # 一对一
 """)
 
 
@@ -2052,13 +2396,24 @@ def main():
         all_results["multi_llm"] = results
 
     if experiment in ["cheap_talk", "all"]:
-        # cheap_talk 支持 --provider1 和 --provider2 指定两个不同的 LLM
+        # cheap_talk 三方对战 (3 LLM Round-Robin)
+        results = experiment_cheap_talk(
+            result_manager,
+            providers=["deepseek", "openai", "gemini"],
+            n_repeats=n_repeats,
+            rounds=rounds,
+            games=games
+        )
+        all_results["cheap_talk_3llm"] = results
+
+    if experiment in ["cheap_talk_1v1", "all"]:
+        # cheap_talk_1v1 一对一对战
         p1 = provider1 if provider1 else provider
         p2 = provider2 if provider2 else provider
-        results = experiment_cheap_talk(
+        results = experiment_cheap_talk_1v1(
             result_manager, provider1=p1, provider2=p2, n_repeats=n_repeats, rounds=rounds, games=games
         )
-        all_results["cheap_talk"] = results
+        all_results["cheap_talk_1v1"] = results
 
     if experiment in ["group", "group_multi", "all"]:
         # 群体动力学实验默认使用三模型
@@ -2094,7 +2449,7 @@ def main():
         )
         all_results["baseline"] = results
 
-    if experiment not in ["pure_hybrid", "window", "multi_llm", "cheap_talk", "group", "group_multi", "group_single", "baseline", "all"]:
+    if experiment not in ["pure_hybrid", "window", "multi_llm", "cheap_talk", "cheap_talk_1v1", "group", "group_multi", "group_single", "baseline", "all"]:
         print(f"未知实验: {experiment}")
         print_usage()
         return
