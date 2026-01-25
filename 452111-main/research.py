@@ -1,5 +1,5 @@
 """
-博弈论 LLM 多智能体研究实验脚本 v9
+博弈论 LLM 多智能体研究实验脚本 v10
 Game Theory LLM Multi-Agent Research Experiments
 
 实验列表 (使用 python research.py <exp_name> 运行):
@@ -2156,7 +2156,7 @@ EXPERIMENT_ALIASES = {
 def print_usage():
     """打印使用说明"""
     print("""
-博弈论 LLM 研究实验脚本 v9
+博弈论 LLM 研究实验脚本 v10
 ==========================
 
 用法:
