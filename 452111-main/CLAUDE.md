@@ -109,3 +109,31 @@ class ResultManager:
 - exp2 记忆视窗实验会自动将 rounds 设为至少 30 轮
 - 结果保存在 `results/{timestamp}/` 目录下
 - API Key 需要在环境变量或配置文件中设置
+
+## 版本更新规则
+
+每次合并代码时，需要更新以下内容：
+
+1. **版本号** (`game_theory/__init__.py`)
+   ```python
+   __version__ = "x.y.z"
+   ```
+
+2. **Usage 版本号** (`research.py` 的 `print_usage()` 函数)
+   ```
+   博弈论 LLM 研究实验脚本 vN
+   ```
+
+3. **更新日志**（在下方记录）
+
+## 更新日志
+
+### v0.2.0 (v11)
+- 修复 exp5/exp5b 策略名泄露问题：经典策略命名从 `TitForTat_1` 改为 `Agent_N`
+- 添加 `strategy_map` 到结果中，用于分析时映射 agent 到真实策略类型
+- 更新 exp5/exp5b 经典策略列表：
+  - 新：RandomStrategy, TitForTat, Pavlov, GradualStrategy, ProbabilisticCooperator, SuspiciousTitForTat
+  - 移除：AlwaysCooperate, AlwaysDefect, GrimTrigger
+
+### v0.1.0 (v10)
+- 初始版本

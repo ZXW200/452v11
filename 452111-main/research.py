@@ -39,7 +39,8 @@ from game_theory.games import (
 from game_theory.llm_strategy import LLMStrategy
 from game_theory.strategies import (
     TitForTat, AlwaysCooperate, AlwaysDefect,
-    GrimTrigger, Pavlov, RandomStrategy
+    GrimTrigger, Pavlov, RandomStrategy,
+    GradualStrategy, ProbabilisticCooperator, SuspiciousTitForTat
 )
 from game_theory.network import (
     FullyConnectedNetwork, SmallWorldNetwork, ScaleFreeNetwork, NETWORK_REGISTRY
@@ -1667,8 +1668,8 @@ class Exp5_GroupDynamics(BaseExperiment):
                             strategy_map[agent_name] = f"LLM({self.provider})"
 
                         classic_classes = [
-                            TitForTat, AlwaysCooperate, AlwaysDefect,
-                            Pavlov, GrimTrigger, RandomStrategy
+                            RandomStrategy, TitForTat, Pavlov,
+                            GradualStrategy, ProbabilisticCooperator, SuspiciousTitForTat
                         ]
                         for k in range(n_classic):
                             StrategyClass = classic_classes[k % len(classic_classes)]
@@ -1825,8 +1826,8 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                                 current_llm_idx += 1
 
                         classic_classes = [
-                            TitForTat, AlwaysCooperate, AlwaysDefect,
-                            Pavlov, GrimTrigger, RandomStrategy
+                            RandomStrategy, TitForTat, Pavlov,
+                            GradualStrategy, ProbabilisticCooperator, SuspiciousTitForTat
                         ]
                         for k in range(n_classic):
                             StrategyClass = classic_classes[k % len(classic_classes)]
@@ -2291,7 +2292,7 @@ EXPERIMENT_ALIASES = {
 def print_usage():
     """打印使用说明"""
     print("""
-博弈论 LLM 研究实验脚本 v10
+博弈论 LLM 研究实验脚本 v11
 ==========================
 
 用法:
@@ -2304,7 +2305,9 @@ def print_usage():
   exp4          - 实验4: Cheap Talk 三方对战 (3 LLM Round-Robin)
   exp4b         - 实验4b: Cheap Talk 一对一 (支持指定双方 provider)
   exp5          - 实验5: 群体动力学（单 Provider）
+                  经典策略: Random, TitForTat, Pavlov, Gradual, ProbabilisticCooperator, SuspiciousTitForTat
   exp5b         - 实验5b: 群体动力学（DeepSeek/OpenAI/Gemini 三模型）
+                  经典策略: 同 exp5
   exp6          - 实验6: Baseline 对比（DeepSeek/OpenAI/Gemini 三模型）
   all           - 运行全部实验
 
