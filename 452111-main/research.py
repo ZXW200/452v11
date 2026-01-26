@@ -1,5 +1,5 @@
 """
-博弈论 LLM 多智能体研究实验脚本 v10
+博弈论 LLM 多智能体研究实验脚本 v11
 Game Theory LLM Multi-Agent Research Experiments
 
 实验列表 (使用 python research.py <exp_name> 运行):
@@ -22,6 +22,7 @@ import sys
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
+matplotlib.use('Agg')
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
@@ -2433,3 +2434,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
