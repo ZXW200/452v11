@@ -368,19 +368,17 @@ class AnomalyRecorder:
         self.records = []
 
     def save_to_file(self, result_manager: 'ResultManager', experiment_name: str):
-        """保存异常记录到文件"""
+        """保存异常记录到 CSV 文件"""
         if not self.records:
             return None
 
-        filepath = os.path.join(result_manager.summary_dir, f"{experiment_name}_anomalies.json")
-        data = {
-            "experiment": experiment_name,
-            "total_anomalies": len(self.records),
-            "records": self.records,
-        }
+        filepath = os.path.join(result_manager.summary_dir, f"{experiment_name}_anomalies.csv")
+        fieldnames = ["experiment", "game", "provider", "condition", "trial", "rounds", "coop_rate_pct", "payoff"]
 
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        with open(filepath, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(self.records)
 
         print(f"  Anomalies: {filepath} ({len(self.records)} records)")
         return filepath
