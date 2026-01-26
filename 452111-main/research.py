@@ -1670,7 +1670,7 @@ class Exp5_GroupDynamics(BaseExperiment):
                         for k in range(n_classic):
                             StrategyClass = classic_classes[k % len(classic_classes)]
                             strategies.append((
-                                f"{StrategyClass.__name__}_{k + 1}",
+                                f"Agent_{n_llm + k + 1}",
                                 StrategyClass()
                             ))
 
@@ -1822,7 +1822,7 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                         for k in range(n_classic):
                             StrategyClass = classic_classes[k % len(classic_classes)]
                             strategies.append((
-                                f"{StrategyClass.__name__}_{k + 1}",
+                                f"Agent_{n_llm_total + k + 1}",
                                 StrategyClass()
                             ))
 
