@@ -1656,7 +1656,7 @@ class Exp5_GroupDynamics(BaseExperiment):
                         strategies = []
                         strategy_map = {}  # agent_name -> strategy_type
 
-                        n_llm = max(2, int(self.n_agents * 0.2))
+                        n_llm = self.n_agents // 2
                         n_classic = self.n_agents - n_llm
 
                         for k in range(n_llm):
@@ -1806,8 +1806,10 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                         strategies = []
                         strategy_map = {}  # agent_name -> strategy_type
 
-                        min_llms = len(self.providers)
-                        n_llm_total = max(min_llms, int(self.n_agents * 0.2))
+                        min_llms = len(self.providers)  # 至少每个 provider 1个
+                        target_llms = self.n_agents // 2  # 目标 50%
+                        n_llm_total = max(min_llms, target_llms)  # 取较大值
+                        n_llm_total = min(n_llm_total, self.n_agents)  # 防止超过总数
                         n_classic = self.n_agents - n_llm_total
 
                         base_count = n_llm_total // len(self.providers)
