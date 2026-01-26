@@ -1003,8 +1003,9 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                             )
 
                         total_payoffs = {p: 0 for p in self.providers}
-                        histories = {p: [] for p in self.providers}
-                        messages = {p: [] for p in self.providers}
+                        # 按对手对存储历史: {(p1, p2): {"p1": [], "p2": []}}
+                        pair_histories = {(p1, p2): {"p1": [], "p2": []} for p1, p2 in pairs}
+                        pair_messages = {(p1, p2): {"p1": [], "p2": []} for p1, p2 in pairs}
 
                         round_details = []
 
@@ -1015,20 +1016,33 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                                 llm1 = llms[p1]
                                 llm2 = llms[p2]
 
+                                # 获取这对对手的独立历史
+                                h1 = pair_histories[(p1, p2)]["p1"]  # p1对p2的动作历史
+                                h2 = pair_histories[(p1, p2)]["p2"]  # p2对p1的动作历史
+
                                 msg1 = ""
                                 msg2 = ""
                                 if use_cheap_talk:
                                     if hasattr(llm1, 'generate_message'):
-                                        msg1 = llm1.generate_message(histories[p1], histories[p2], p2)
+                                        msg1 = llm1.generate_message(h1, h2, p2)
                                     if hasattr(llm2, 'generate_message'):
-                                        msg2 = llm2.generate_message(histories[p2], histories[p1], p1)
+                                        msg2 = llm2.generate_message(h2, h1, p1)
 
-                                action1 = llm1.choose_action(histories[p1], histories[p2], p2, opponent_message=msg2)
-                                action2 = llm2.choose_action(histories[p2], histories[p1], p1, opponent_message=msg1)
+                                action1 = llm1.choose_action(h1, h2, p2, opponent_message=msg2)
+                                action2 = llm2.choose_action(h2, h1, p1, opponent_message=msg1)
 
                                 payoff1, payoff2 = get_payoff(game_config, action1, action2)
                                 total_payoffs[p1] += payoff1
                                 total_payoffs[p2] += payoff2
+
+                                # 记录历史
+                                pair_histories[(p1, p2)]["p1"].append(action1)
+                                pair_histories[(p1, p2)]["p2"].append(action2)
+                                if use_cheap_talk:
+                                    if msg1:
+                                        pair_messages[(p1, p2)]["p1"].append(msg1)
+                                    if msg2:
+                                        pair_messages[(p1, p2)]["p2"].append(msg2)
 
                                 match_data = {
                                     "pair": f"{p1}_vs_{p2}",
@@ -1058,23 +1072,21 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                                     "p2_payoff": payoff2,
                                 })
 
-                            for p1, p2 in pairs:
-                                for match in round_data["matches"]:
-                                    if match["p1"] == p1 and match["p2"] == p2:
-                                        histories[p1].append(Action[match["p1_action"]])
-                                        histories[p2].append(Action[match["p2_action"]])
-                                        if use_cheap_talk:
-                                            if match["p1_message"]:
-                                                messages[p1].append(match["p1_message"])
-                                            if match["p2_message"]:
-                                                messages[p2].append(match["p2_message"])
-                                        break
-
                             round_details.append(round_data)
+
+                        # 汇总每个provider的合作率（从所有pair中收集）
+                        provider_actions = {p: [] for p in self.providers}
+                        provider_messages = {p: [] for p in self.providers}
+                        for (p1, p2), hist in pair_histories.items():
+                            provider_actions[p1].extend(hist["p1"])
+                            provider_actions[p2].extend(hist["p2"])
+                        for (p1, p2), msgs in pair_messages.items():
+                            provider_messages[p1].extend(msgs["p1"])
+                            provider_messages[p2].extend(msgs["p2"])
 
                         coop_rate_dict = {}
                         for provider in self.providers:
-                            coop_rate = compute_cooperation_rate(histories[provider])
+                            coop_rate = compute_cooperation_rate(provider_actions[provider])
                             results[mode][provider].append(total_payoffs[provider])
                             coop_rates[mode][provider].append(coop_rate)
                             coop_rate_dict[provider] = coop_rate
@@ -1082,8 +1094,8 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                             # 记录异常合作率
                             self._record_anomaly(coop_rate, game_name, trial + 1, total_payoffs[provider], provider=provider, condition=f"mode={mode}")
 
-                            if use_cheap_talk and messages[provider]:
-                                kept = _analyze_promise_keeping(messages[provider], histories[provider])
+                            if use_cheap_talk and provider_messages[provider]:
+                                kept = _analyze_promise_keeping(provider_messages[provider], provider_actions[provider])
                                 promise_kept[provider].append(kept)
 
                         trial_record = {
