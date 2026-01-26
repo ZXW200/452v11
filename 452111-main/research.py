@@ -310,6 +310,86 @@ def compute_cooperation_rate(history: List[Action]) -> float:
     return cooperations / len(history)
 
 
+class AnomalyRecorder:
+    """
+    记录合作率异常的实验数据
+    当合作率不为 100% 时自动记录
+    """
+
+    def __init__(self):
+        self.records = []
+
+    def check_and_record(
+        self,
+        coop_rate: float,
+        experiment: str,
+        game: str,
+        trial: int,
+        rounds: int,
+        payoff: float,
+        provider: str = "",
+        condition: str = "",
+        threshold: float = 1.0,
+    ):
+        """
+        检查合作率，如果低于阈值则记录
+
+        Args:
+            coop_rate: 合作率 (0.0 - 1.0)
+            experiment: 实验名称 (exp1, exp2, ...)
+            game: 博弈类型
+            trial: 第几次试验
+            rounds: 轮数
+            payoff: 得分
+            provider: LLM 提供商
+            condition: 实验条件 (如 window=5, mode=pure 等)
+            threshold: 阈值，低于此值才记录 (默认 1.0 即 100%)
+        """
+        if coop_rate < threshold:
+            record = {
+                "experiment": experiment,
+                "game": game,
+                "provider": provider,
+                "condition": condition,
+                "trial": trial,
+                "rounds": rounds,
+                "coop_rate": round(coop_rate, 4),
+                "coop_rate_pct": f"{coop_rate * 100:.1f}%",
+                "payoff": payoff,
+            }
+            self.records.append(record)
+
+    def get_records(self) -> List[Dict]:
+        """获取所有异常记录"""
+        return self.records
+
+    def clear(self):
+        """清空记录"""
+        self.records = []
+
+    def save_to_file(self, result_manager: 'ResultManager', experiment_name: str):
+        """保存异常记录到文件"""
+        if not self.records:
+            return None
+
+        filepath = os.path.join(result_manager.summary_dir, f"{experiment_name}_anomalies.json")
+        data = {
+            "experiment": experiment_name,
+            "total_anomalies": len(self.records),
+            "records": self.records,
+        }
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        print(f"  Anomalies: {filepath} ({len(self.records)} records)")
+        return filepath
+
+
+# 全局异常记录器
+anomaly_recorder = AnomalyRecorder()
+
+
 def make_history_tuples(my_history: List[Action], opp_history: List[Action]) -> List[Tuple[Action, Action]]:
     """
     将两个独立的历史列表转换为元组列表
@@ -443,6 +523,25 @@ class BaseExperiment:
     def _print_summary(self, results: Dict):
         raise NotImplementedError
 
+    def _record_anomaly(self, coop_rate: float, game: str, trial: int, payoff: float,
+                        provider: str = "", condition: str = ""):
+        """记录异常合作率（合作率 < 100% 时自动记录）"""
+        anomaly_recorder.check_and_record(
+            coop_rate=coop_rate,
+            experiment=self.name,
+            game=game,
+            trial=trial,
+            rounds=self.rounds,
+            payoff=payoff,
+            provider=provider or self.provider,
+            condition=condition,
+        )
+
+    def _save_anomalies(self):
+        """保存异常记录并清空"""
+        anomaly_recorder.save_to_file(self.result_manager, self.name)
+        anomaly_recorder.clear()
+
 
 # ============================================================
 # 实验1: Pure vs Hybrid
@@ -514,6 +613,9 @@ class Exp1_PureVsHybrid(BaseExperiment):
                         results[mode].append(llm_payoff)
                         coop_rates[mode].append(coop_rate)
 
+                        # 记录异常合作率
+                        self._record_anomaly(coop_rate, game_name, trial + 1, llm_payoff, condition=f"mode={mode}")
+
                         if hasattr(llm_strategy, 'get_parse_quality'):
                             parse_quality = llm_strategy.get_parse_quality()
                             success_rate = parse_quality.get('success_rate', 0)
@@ -566,6 +668,7 @@ class Exp1_PureVsHybrid(BaseExperiment):
         self._print_summary(all_results)
         self.result_manager.save_experiment_summary("exp1_pure_vs_hybrid", all_results)
 
+        self._save_anomalies()
         return all_results
 
     def _print_summary(self, results: Dict):
@@ -668,6 +771,9 @@ class Exp2_MemoryWindow(BaseExperiment):
                         payoffs.append(llm_payoff)
                         coop_rates.append(coop_rate)
 
+                        # 记录异常合作率
+                        self._record_anomaly(coop_rate, game_name, trial + 1, llm_payoff, condition=f"window={window_label}")
+
                         print(f"Payoff: {llm_payoff:.1f}, Coop rate: {coop_rate:.1%}")
 
                     except Exception as e:
@@ -689,7 +795,7 @@ class Exp2_MemoryWindow(BaseExperiment):
 
         self._print_summary(all_results)
         self.result_manager.save_experiment_summary("exp2_memory_window", all_results)
-
+        self._save_anomalies()
         return all_results
 
     def _print_summary(self, results: Dict):
@@ -784,6 +890,9 @@ class Exp3_MultiLLM(BaseExperiment):
                         payoffs.append(llm_payoff)
                         coop_rates.append(coop_rate)
 
+                        # 记录异常合作率
+                        self._record_anomaly(coop_rate, game_name, trial + 1, llm_payoff, provider=provider)
+
                         print(f"Payoff: {llm_payoff:.1f}, Coop rate: {coop_rate:.1%}")
 
                     except Exception as e:
@@ -805,7 +914,7 @@ class Exp3_MultiLLM(BaseExperiment):
 
         self._print_summary(all_results)
         self.result_manager.save_experiment_summary("exp3_multi_llm", all_results)
-
+        self._save_anomalies()
         return all_results
 
     def _print_summary(self, results: Dict):
@@ -970,6 +1079,9 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                             coop_rates[mode][provider].append(coop_rate)
                             coop_rate_dict[provider] = coop_rate
 
+                            # 记录异常合作率
+                            self._record_anomaly(coop_rate, game_name, trial + 1, total_payoffs[provider], provider=provider, condition=f"mode={mode}")
+
                             if use_cheap_talk and messages[provider]:
                                 kept = _analyze_promise_keeping(messages[provider], histories[provider])
                                 promise_kept[provider].append(kept)
@@ -1024,7 +1136,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
 
         self._print_summary(all_results)
         self.result_manager.save_experiment_summary("exp4_cheap_talk_3llm", all_results)
-
+        self._save_anomalies()
         return all_results
 
     def _generate_transcript(self, game_name: str, detailed_trials: Dict) -> str:
@@ -1287,6 +1399,10 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
                         coop_rates[mode]["player1"].append(coop_rate_1)
                         coop_rates[mode]["player2"].append(coop_rate_2)
 
+                        # 记录异常合作率
+                        self._record_anomaly(coop_rate_1, game_name, trial + 1, total_payoff_1, provider=self.provider1, condition=f"mode={mode},player=1")
+                        self._record_anomaly(coop_rate_2, game_name, trial + 1, total_payoff_2, provider=self.provider2, condition=f"mode={mode},player=2")
+
                         trial_record = {
                             "trial": trial + 1,
                             "player1_payoff": total_payoff_1,
@@ -1376,7 +1492,7 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
 
         self._print_summary(all_results)
         self.result_manager.save_experiment_summary("exp4b_cheap_talk_1v1", all_results)
-
+        self._save_anomalies()
         return all_results
 
     def _generate_transcript(self, game_name: str, detailed_trials: Dict) -> str:
@@ -2006,6 +2122,9 @@ class Exp6_Baseline(BaseExperiment):
                             payoffs.append(llm_payoff)
                             coop_rates.append(coop_rate)
 
+                            # 记录异常合作率
+                            self._record_anomaly(coop_rate, game_name, trial + 1, llm_payoff, provider=provider, condition=f"vs_{baseline_name}")
+
                             detail_data = {
                                 "experiment": "exp6_baseline",
                                 "game": game_name,
@@ -2045,7 +2164,7 @@ class Exp6_Baseline(BaseExperiment):
 
         _print_baseline_summary_multi_provider(all_results, self.providers)
         self.result_manager.save_experiment_summary("exp6_baseline", all_results)
-
+        self._save_anomalies()
         return all_results
 
 
