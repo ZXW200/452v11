@@ -1653,15 +1653,18 @@ class Exp5_GroupDynamics(BaseExperiment):
                         print(f"    Repeat {i + 1}/{self.n_repeats}...", end=" ", flush=True)
 
                         strategies = []
+                        strategy_map = {}  # agent_name -> strategy_type
 
                         n_llm = max(2, int(self.n_agents * 0.2))
                         n_classic = self.n_agents - n_llm
 
                         for k in range(n_llm):
+                            agent_name = f"LLM_{k + 1}"
                             strategies.append((
-                                f"LLM_{k + 1}",
+                                agent_name,
                                 LLMStrategy(provider=self.provider, mode="hybrid", game_config=game_config)
                             ))
+                            strategy_map[agent_name] = f"LLM({self.provider})"
 
                         classic_classes = [
                             TitForTat, AlwaysCooperate, AlwaysDefect,
@@ -1669,10 +1672,12 @@ class Exp5_GroupDynamics(BaseExperiment):
                         ]
                         for k in range(n_classic):
                             StrategyClass = classic_classes[k % len(classic_classes)]
+                            agent_name = f"Agent_{n_llm + k + 1}"
                             strategies.append((
-                                f"Agent_{n_llm + k + 1}",
+                                agent_name,
                                 StrategyClass()
                             ))
+                            strategy_map[agent_name] = StrategyClass.__name__
 
                         agent_names = [name for name, _ in strategies]
                         NetworkClass = NETWORK_REGISTRY[network_name]
@@ -1733,13 +1738,14 @@ class Exp5_GroupDynamics(BaseExperiment):
                         "payoffs": final_payoffs,
                         "coop_rates": coop_rates,
                         "rankings": sorted(final_payoffs.items(), key=lambda x: x[1], reverse=True),
+                        "strategy_map": strategy_map,
                     }
 
                     print(f"    Avg ranking (Top 5):")
                     for rank, (aid, payoff) in enumerate(network_results[network_name]["rankings"][:5], 1):
                         coop = coop_rates.get(aid, 0)
-                        marker = "[LLM]" if aid.startswith("LLM") else "[Classic]"
-                        print(f"      {marker} {rank}. {aid}: {payoff:.1f} (Coop: {coop:.1%})")
+                        strategy_type = strategy_map.get(aid, "Unknown")
+                        print(f"      {rank}. {aid} ({strategy_type}): {payoff:.1f} (Coop: {coop:.1%})")
 
                 except Exception as e:
                     print(f"    Error: {e}")
@@ -1797,6 +1803,7 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                         print(f"    Repeat {i + 1}/{self.n_repeats}...", end=" ", flush=True)
 
                         strategies = []
+                        strategy_map = {}  # agent_name -> strategy_type
 
                         min_llms = len(self.providers)
                         n_llm_total = max(min_llms, int(self.n_agents * 0.2))
@@ -1809,10 +1816,12 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                         current_llm_idx = 1
                         for provider, count in zip(self.providers, llm_counts):
                             for _ in range(count):
+                                agent_name = f"LLM_{provider}_{current_llm_idx}"
                                 strategies.append((
-                                    f"LLM_{provider}_{current_llm_idx}",
+                                    agent_name,
                                     LLMStrategy(provider=provider, mode="hybrid", game_config=game_config)
                                 ))
+                                strategy_map[agent_name] = f"LLM({provider})"
                                 current_llm_idx += 1
 
                         classic_classes = [
@@ -1821,10 +1830,12 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                         ]
                         for k in range(n_classic):
                             StrategyClass = classic_classes[k % len(classic_classes)]
+                            agent_name = f"Agent_{n_llm_total + k + 1}"
                             strategies.append((
-                                f"Agent_{n_llm_total + k + 1}",
+                                agent_name,
                                 StrategyClass()
                             ))
+                            strategy_map[agent_name] = StrategyClass.__name__
 
                         agent_names = [name for name, _ in strategies]
                         NetworkClass = NETWORK_REGISTRY[network_name]
@@ -1908,13 +1919,14 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                         "rankings": sorted(final_payoffs.items(), key=lambda x: x[1], reverse=True),
                         "llm_comparison": llm_results,
                         "traditional_comparison": traditional_results,
+                        "strategy_map": strategy_map,
                     }
 
-                    print(f"    LLM Avg ranking (Top 5):")
-                    llm_ranked = sorted(llm_results.items(), key=lambda x: x[1], reverse=True)
-                    for rank, (aid, payoff) in enumerate(llm_ranked[:5], 1):
+                    print(f"    Avg ranking (Top 5):")
+                    for rank, (aid, payoff) in enumerate(network_results[network_name]["rankings"][:5], 1):
                         coop = coop_rates.get(aid, 0)
-                        print(f"      {rank}. {aid}: {payoff:.1f} (Coop: {coop:.1%})")
+                        strategy_type = strategy_map.get(aid, "Unknown")
+                        print(f"      {rank}. {aid} ({strategy_type}): {payoff:.1f} (Coop: {coop:.1%})")
 
                 except Exception as e:
                     print(f"    Error: {e}")
