@@ -229,6 +229,37 @@ class ResultManager:
         print(f"  Rounds: {filepath}")
         return filepath
 
+    def save_rounds_csv(self, experiment_name: str, game_name: str, network_name: str, records: List[Dict]) -> str:
+        """
+        保存每轮记录为 CSV 格式
+
+        Args:
+            experiment_name: 实验名称
+            game_name: 博弈类型
+            network_name: 网络类型
+            records: 每轮记录列表
+
+        Returns:
+            保存的文件路径
+        """
+        game_dir = self.get_game_dir(game_name)
+        filename = f"{experiment_name}_{network_name}_rounds.csv"
+        filepath = os.path.join(game_dir, filename)
+
+        if not records:
+            return filepath
+
+        # 获取所有字段名
+        fieldnames = list(records[0].keys())
+
+        with open(filepath, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(records)
+
+        print(f"  Rounds CSV: {filepath}")
+        return filepath
+
     def save_experiment_summary(self, experiment_name: str, data: Dict) -> str:
         """保存实验汇总到 summary 目录 (CSV 格式)"""
         filepath = os.path.join(self.summary_dir, f"{experiment_name}.csv")
@@ -1770,21 +1801,28 @@ class Exp5_GroupDynamics(BaseExperiment):
                             all_trials_coop_rates[aid].append(rate)
                             trial_coop_rates[aid] = rate
 
+                        # 记录所有 agent 的每轮数据（包括经典策略）
                         for aid, agent in agents.items():
-                            if hasattr(agent.strategy, 'raw_responses') and agent.game_history:
-                                responses = agent.strategy.raw_responses
+                            if agent.game_history:
+                                # 获取 LLM 响应（如果有）
+                                responses = getattr(agent.strategy, 'raw_responses', [])
                                 for r_idx, hist in enumerate(agent.game_history):
                                     llm_response = responses[r_idx] if r_idx < len(responses) else ""
+                                    # 转换匿名名字为真实策略名
+                                    real_agent_name = strategy_map.get(aid, aid)
+                                    real_opponent_name = strategy_map.get(hist.get("opponent", ""), hist.get("opponent", ""))
                                     all_round_records.append({
                                         "network": network_name,
                                         "trial": i + 1,
                                         "round": r_idx + 1,
-                                        "agent": aid,
-                                        "llm_response": llm_response,
+                                        "agent": real_agent_name,
+                                        "agent_type": "LLM" if real_agent_name.startswith("LLM") else "Classic",
+                                        "opponent": real_opponent_name,
+                                        "opponent_type": "LLM" if real_opponent_name.startswith("LLM") else "Classic",
                                         "my_action": hist.get("my_action", ""),
-                                        "opponent": hist.get("opponent", ""),
                                         "opp_action": hist.get("opp_action", ""),
                                         "payoff": hist.get("payoff", 0),
+                                        "llm_response": llm_response,
                                     })
 
                         print("Done")
@@ -1817,7 +1855,12 @@ class Exp5_GroupDynamics(BaseExperiment):
 
             all_results[game_name] = network_results
             self.result_manager.save_json(game_name, "exp5_group_dynamics", network_results)
-            self.result_manager.save_round_records("exp5", game_name, normalize_provider_name(self.provider), all_round_records)
+
+            # 按网络类型分别保存每轮记录为 CSV
+            for net_name in self.networks:
+                net_records = [r for r in all_round_records if r["network"] == net_name]
+                if net_records:
+                    self.result_manager.save_rounds_csv("exp5", game_name, net_name, net_records)
 
             fig = _plot_group_rankings(network_results, game_name)
             if fig:
@@ -1950,21 +1993,28 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                             if hasattr(agent.strategy, 'raw_responses'):
                                 llm_responses[aid] = agent.strategy.raw_responses.copy()
 
+                        # 记录所有 agent 的每轮数据（包括经典策略）
                         for aid, agent in agents.items():
-                            if hasattr(agent.strategy, 'raw_responses') and agent.game_history:
-                                responses = agent.strategy.raw_responses
+                            if agent.game_history:
+                                # 获取 LLM 响应（如果有）
+                                responses = getattr(agent.strategy, 'raw_responses', [])
                                 for r_idx, hist in enumerate(agent.game_history):
                                     llm_response = responses[r_idx] if r_idx < len(responses) else ""
+                                    # 转换匿名名字为真实策略名
+                                    real_agent_name = strategy_map.get(aid, aid)
+                                    real_opponent_name = strategy_map.get(hist.get("opponent", ""), hist.get("opponent", ""))
                                     all_round_records.append({
                                         "network": network_name,
                                         "trial": i + 1,
                                         "round": r_idx + 1,
-                                        "agent": aid,
-                                        "llm_response": llm_response,
+                                        "agent": real_agent_name,
+                                        "agent_type": "LLM" if real_agent_name.startswith("LLM") else "Classic",
+                                        "opponent": real_opponent_name,
+                                        "opponent_type": "LLM" if real_opponent_name.startswith("LLM") else "Classic",
                                         "my_action": hist.get("my_action", ""),
-                                        "opponent": hist.get("opponent", ""),
                                         "opp_action": hist.get("opp_action", ""),
                                         "payoff": hist.get("payoff", 0),
+                                        "llm_response": llm_response,
                                     })
 
                         detail_data = {
@@ -2016,7 +2066,12 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
 
             all_results[game_name] = network_results
             self.result_manager.save_json(game_name, "exp5b_group_dynamics_multi", network_results)
-            self.result_manager.save_round_records("exp5b", game_name, "multi", all_round_records)
+
+            # 按网络类型分别保存每轮记录为 CSV
+            for net_name in self.networks:
+                net_records = [r for r in all_round_records if r["network"] == net_name]
+                if net_records:
+                    self.result_manager.save_rounds_csv("exp5b", game_name, net_name, net_records)
 
             fig = _plot_multi_provider_comparison(network_results, game_name, display_providers)
             if fig:
