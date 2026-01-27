@@ -49,9 +49,9 @@ DEFAULT_CONFIG = {
         "base_url": "https://api.openai.com/v1",
         "model": "gpt-4o-mini",
     },
-    "gemini": {
+    "moonshot": {
         "api_key": "",
-        "base_url": "https://generativelanguage.googleapis.com",
+        "base_url": "https://hiapi.online/v1",
         "model": "gemini-3-flash-preview",
     },
     "deepseek": {
