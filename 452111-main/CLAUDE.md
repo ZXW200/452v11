@@ -8,7 +8,7 @@
 
 ```
 452111-main/
-├── research.py          # 主实验脚本 (v10)，包含所有实验类
+├── research.py          # 主实验脚本 (v12)，包含所有实验类
 ├── game_theory/         # 博弈论核心模块
 │   ├── games.py         # 博弈定义（囚徒困境、雪堆、猎鹿）
 │   ├── llm_api.py       # LLM API 封装（DeepSeek/OpenAI/Gemini）
@@ -127,6 +127,11 @@ class ResultManager:
 3. **更新日志**（在下方记录）
 
 ## 更新日志
+
+### v0.3.0 (v12)
+- 统一版本号管理（research.py、__init__.py、CLAUDE.md 版本号一致）
+- 修复裸异常处理问题（llm_api.py 中 `except:` 改为 `except Exception:`）
+- 重写 README.md 文档
 
 ### v0.2.0 (v11)
 - 修复 exp5/exp5b 策略名泄露问题：经典策略命名从 `TitForTat_1` 改为 `Agent_N`

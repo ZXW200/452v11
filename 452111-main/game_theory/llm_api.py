@@ -217,7 +217,7 @@ class LLMClient:
         try:
             response = self.chat("Say OK", max_tokens=10)
             return not response.startswith("[") and len(response) > 0
-        except:
+        except Exception:
             return False
 
 

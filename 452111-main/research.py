@@ -2344,7 +2344,7 @@ EXPERIMENT_ALIASES = {
 def print_usage():
     """打印使用说明"""
     print("""
-博弈论 LLM 研究实验脚本 v10
+博弈论 LLM 研究实验脚本 v12
 ==========================
 
 用法:
