@@ -1701,6 +1701,9 @@ class Exp5_GroupDynamics(BaseExperiment):
                     all_trials_payoffs = defaultdict(list)
                     all_trials_coop_rates = defaultdict(list)
 
+                    # 策略映射表：匿名名字 -> 真实策略名（在循环外保持一致）
+                    strategy_map = {}
+
                     for i in range(self.n_repeats):
                         print(f"    Repeat {i + 1}/{self.n_repeats}...", end=" ", flush=True)
 
@@ -1709,20 +1712,28 @@ class Exp5_GroupDynamics(BaseExperiment):
                         n_llm = self.n_agents // 2
                         n_classic = self.n_agents - n_llm
 
+                        # LLM agents: 使用匿名名字 Player_1, Player_2, ...
                         for k in range(n_llm):
+                            anon_name = f"Player_{k + 1}"
+                            real_name = f"LLM_{k + 1}"
+                            strategy_map[anon_name] = real_name
                             strategies.append((
-                                f"LLM_{k + 1}",
+                                anon_name,
                                 LLMStrategy(provider=self.provider, mode="hybrid", game_config=game_config)
                             ))
 
+                        # Classic agents: 使用匿名名字，隐藏真实策略
                         classic_classes = [
                             TitForTat, AlwaysCooperate, AlwaysDefect,
                             Pavlov, GrimTrigger, RandomStrategy
                         ]
                         for k in range(n_classic):
                             StrategyClass = classic_classes[k % len(classic_classes)]
+                            anon_name = f"Player_{n_llm + k + 1}"
+                            real_name = f"{StrategyClass.__name__}_{k + 1}"
+                            strategy_map[anon_name] = real_name
                             strategies.append((
-                                f"{StrategyClass.__name__}_{k + 1}",
+                                anon_name,
                                 StrategyClass()
                             ))
 
@@ -1781,15 +1792,20 @@ class Exp5_GroupDynamics(BaseExperiment):
                     final_payoffs = {k: np.mean(v) for k, v in all_trials_payoffs.items()}
                     coop_rates = {k: np.mean(v) for k, v in all_trials_coop_rates.items()}
 
+                    # 将匿名名字转换为真实策略名用于结果输出
+                    real_payoffs = {strategy_map.get(k, k): v for k, v in final_payoffs.items()}
+                    real_coop_rates = {strategy_map.get(k, k): v for k, v in coop_rates.items()}
+
                     network_results[network_name] = {
-                        "payoffs": final_payoffs,
-                        "coop_rates": coop_rates,
-                        "rankings": sorted(final_payoffs.items(), key=lambda x: x[1], reverse=True),
+                        "payoffs": real_payoffs,
+                        "coop_rates": real_coop_rates,
+                        "rankings": sorted(real_payoffs.items(), key=lambda x: x[1], reverse=True),
+                        "strategy_map": strategy_map,  # 保存映射表供参考
                     }
 
                     print(f"    Avg ranking (Top 5):")
                     for rank, (aid, payoff) in enumerate(network_results[network_name]["rankings"][:5], 1):
-                        coop = coop_rates.get(aid, 0)
+                        coop = real_coop_rates.get(aid, 0)
                         marker = "[LLM]" if aid.startswith("LLM") else "[Classic]"
                         print(f"      {marker} {rank}. {aid}: {payoff:.1f} (Coop: {coop:.1%})")
 
@@ -1847,6 +1863,9 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                     all_trials_payoffs = defaultdict(list)
                     all_trials_coop_rates = defaultdict(list)
 
+                    # 策略映射表：匿名名字 -> 真实策略名
+                    strategy_map = {}
+
                     for i in range(self.n_repeats):
                         print(f"    Repeat {i + 1}/{self.n_repeats}...", end=" ", flush=True)
 
@@ -1862,26 +1881,37 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                         remainder = n_llm_total % len(self.providers)
                         llm_counts = [base_count + 1 if k < remainder else base_count for k in range(len(self.providers))]
 
+                        # LLM agents: 使用匿名名字
                         current_llm_idx = 1
+                        agent_idx = 1
                         for provider, count in zip(self.providers, llm_counts):
                             display_name = normalize_provider_name(provider)
                             for _ in range(count):
+                                anon_name = f"Player_{agent_idx}"
+                                real_name = f"LLM_{display_name}_{current_llm_idx}"
+                                strategy_map[anon_name] = real_name
                                 strategies.append((
-                                    f"LLM_{display_name}_{current_llm_idx}",
+                                    anon_name,
                                     LLMStrategy(provider=provider, mode="hybrid", game_config=game_config)
                                 ))
                                 current_llm_idx += 1
+                                agent_idx += 1
 
+                        # Classic agents: 使用匿名名字，隐藏真实策略
                         classic_classes = [
                             TitForTat, AlwaysCooperate, AlwaysDefect,
                             Pavlov, GrimTrigger, RandomStrategy
                         ]
                         for k in range(n_classic):
                             StrategyClass = classic_classes[k % len(classic_classes)]
+                            anon_name = f"Player_{agent_idx}"
+                            real_name = f"{StrategyClass.__name__}_{k + 1}"
+                            strategy_map[anon_name] = real_name
                             strategies.append((
-                                f"{StrategyClass.__name__}_{k + 1}",
+                                anon_name,
                                 StrategyClass()
                             ))
+                            agent_idx += 1
 
                         agent_names = [name for name, _ in strategies]
                         NetworkClass = NETWORK_REGISTRY[network_name]
@@ -1956,21 +1986,26 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                     final_payoffs = {k: np.mean(v) for k, v in all_trials_payoffs.items()}
                     coop_rates = {k: np.mean(v) for k, v in all_trials_coop_rates.items()}
 
-                    llm_results = {k: v for k, v in final_payoffs.items() if k.startswith("LLM_")}
-                    traditional_results = {k: v for k, v in final_payoffs.items() if not k.startswith("LLM_")}
+                    # 将匿名名字转换为真实策略名用于结果输出
+                    real_payoffs = {strategy_map.get(k, k): v for k, v in final_payoffs.items()}
+                    real_coop_rates = {strategy_map.get(k, k): v for k, v in coop_rates.items()}
+
+                    llm_results = {k: v for k, v in real_payoffs.items() if k.startswith("LLM_")}
+                    traditional_results = {k: v for k, v in real_payoffs.items() if not k.startswith("LLM_")}
 
                     network_results[network_name] = {
-                        "payoffs": final_payoffs,
-                        "coop_rates": coop_rates,
-                        "rankings": sorted(final_payoffs.items(), key=lambda x: x[1], reverse=True),
+                        "payoffs": real_payoffs,
+                        "coop_rates": real_coop_rates,
+                        "rankings": sorted(real_payoffs.items(), key=lambda x: x[1], reverse=True),
                         "llm_comparison": llm_results,
                         "traditional_comparison": traditional_results,
+                        "strategy_map": strategy_map,  # 保存映射表供参考
                     }
 
                     print(f"    LLM Avg ranking (Top 5):")
                     llm_ranked = sorted(llm_results.items(), key=lambda x: x[1], reverse=True)
                     for rank, (aid, payoff) in enumerate(llm_ranked[:5], 1):
-                        coop = coop_rates.get(aid, 0)
+                        coop = real_coop_rates.get(aid, 0)
                         print(f"      {rank}. {aid}: {payoff:.1f} (Coop: {coop:.1%})")
 
                 except Exception as e:
