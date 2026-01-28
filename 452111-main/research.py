@@ -693,7 +693,7 @@ class Exp1_PureVsHybrid(BaseExperiment):
                         opp_history = []
 
                         for r in range(self.rounds):
-                            llm_action = llm_strategy.choose_action(llm_history, opp_history)
+                            llm_action = llm_strategy.choose_action(make_history_tuples(llm_history, opp_history))
                             opp_action = opponent.choose_action(make_history_tuples(opp_history, llm_history))
 
                             payoff, _ = get_payoff(game_config, llm_action, opp_action)
@@ -851,7 +851,7 @@ class Exp2_MemoryWindow(BaseExperiment):
                         opp_history = []
 
                         for r in range(self.rounds):
-                            llm_action = llm_strategy.choose_action(llm_history, opp_history)
+                            llm_action = llm_strategy.choose_action(make_history_tuples(llm_history, opp_history))
                             opp_action = opponent.choose_action(make_history_tuples(opp_history, llm_history))
 
                             payoff, _ = get_payoff(game_config, llm_action, opp_action)
@@ -974,7 +974,7 @@ class Exp3_MultiLLM(BaseExperiment):
                         opp_history = []
 
                         for r in range(self.rounds):
-                            llm_action = llm_strategy.choose_action(llm_history, opp_history)
+                            llm_action = llm_strategy.choose_action(make_history_tuples(llm_history, opp_history))
                             opp_action = opponent.choose_action(make_history_tuples(opp_history, llm_history))
 
                             payoff, _ = get_payoff(game_config, llm_action, opp_action)
@@ -1136,12 +1136,12 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                                 msg2 = ""
                                 if use_cheap_talk:
                                     if hasattr(llm1, 'generate_message'):
-                                        msg1 = llm1.generate_message(histories[d1], histories[d2], d2)
+                                        msg1 = llm1.generate_message(make_history_tuples(histories[d1], histories[d2]), d2)
                                     if hasattr(llm2, 'generate_message'):
-                                        msg2 = llm2.generate_message(histories[d2], histories[d1], d1)
+                                        msg2 = llm2.generate_message(make_history_tuples(histories[d2], histories[d1]), d1)
 
-                                action1 = llm1.choose_action(histories[d1], histories[d2], d2, opponent_message=msg2)
-                                action2 = llm2.choose_action(histories[d2], histories[d1], d1, opponent_message=msg1)
+                                action1 = llm1.choose_action(make_history_tuples(histories[d1], histories[d2]), d2, opponent_message=msg2)
+                                action2 = llm2.choose_action(make_history_tuples(histories[d2], histories[d1]), d1, opponent_message=msg1)
 
                                 payoff1, payoff2 = get_payoff(game_config, action1, action2)
                                 total_payoffs[d1] += payoff1
@@ -1474,14 +1474,14 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
                             msg2 = ""
                             if use_cheap_talk:
                                 if hasattr(llm1, 'generate_message'):
-                                    msg1 = llm1.generate_message(history_1, history_2, "Player2")
+                                    msg1 = llm1.generate_message(make_history_tuples(history_1, history_2), "Player2")
                                     messages_1.append(msg1)
                                 if hasattr(llm2, 'generate_message'):
-                                    msg2 = llm2.generate_message(history_2, history_1, "Player1")
+                                    msg2 = llm2.generate_message(make_history_tuples(history_2, history_1), "Player1")
                                     messages_2.append(msg2)
 
-                            action1 = llm1.choose_action(history_1, history_2, "Player2", opponent_message=msg2)
-                            action2 = llm2.choose_action(history_2, history_1, "Player1", opponent_message=msg1)
+                            action1 = llm1.choose_action(make_history_tuples(history_1, history_2), "Player2", opponent_message=msg2)
+                            action2 = llm2.choose_action(make_history_tuples(history_2, history_1), "Player1", opponent_message=msg1)
 
                             payoff1, payoff2 = get_payoff(game_config, action1, action2)
                             total_payoff_1 += payoff1
@@ -2297,7 +2297,7 @@ class Exp6_Baseline(BaseExperiment):
                             opp_history = []
 
                             for r in range(self.rounds):
-                                llm_action = llm_strategy.choose_action(llm_history, opp_history)
+                                llm_action = llm_strategy.choose_action(make_history_tuples(llm_history, opp_history))
                                 opp_action = opponent.choose_action(make_history_tuples(opp_history, llm_history))
 
                                 payoff, _ = get_payoff(game_config, llm_action, opp_action)

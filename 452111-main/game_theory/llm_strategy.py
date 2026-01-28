@@ -358,22 +358,28 @@ class LLMStrategy:
         return Action
 
     def choose_action(self,
-                      my_history: List,
-                      opponent_history: List,
+                      history: List[Tuple[Any, Any]] = None,
                       opponent_name: str = "Opponent",
                       opponent_message: str = None) -> Any:
         """
         选择动作
 
+        接口与 Strategy 基类一致，内部将合并的历史分离
+
         Args:
-            my_history: 我的动作历史 [Action, ...]
-            opponent_history: 对手动作历史 [Action, ...]
+            history: 博弈历史 [(我的动作, 对手动作), ...] 或 None
             opponent_name: 对手名称
             opponent_message: 对手发送的消息 (cheap talk)
 
         Returns:
             Action.COOPERATE 或 Action.DEFECT
         """
+        # 将合并的历史分离为 my_history 和 opponent_history
+        if history is None:
+            history = []
+        my_history = [my_act for my_act, _ in history]
+        opponent_history = [opp_act for _, opp_act in history]
+
         prompt = self._build_prompt(my_history, opponent_history, opponent_name, opponent_message)
 
         try:
@@ -551,15 +557,15 @@ class LLMStrategy:
         }
 
     def generate_message(self,
-                         my_history: List,
-                         opponent_history: List,
+                         history: List[Tuple[Any, Any]] = None,
                          opponent_name: str = "Opponent") -> str:
         """
         生成 Cheap Talk 消息
 
+        接口与 choose_action 保持一致，使用合并的历史格式
+
         Args:
-            my_history: 我的动作历史
-            opponent_history: 对手动作历史
+            history: 博弈历史 [(我的动作, 对手动作), ...] 或 None
             opponent_name: 对手名称
 
         Returns:
@@ -568,7 +574,10 @@ class LLMStrategy:
         if not self.enable_cheap_talk:
             return ""
 
-        rounds_played = len(opponent_history)
+        # 将合并的历史分离
+        if history is None:
+            history = []
+        rounds_played = len(history)
 
         # 构建消息生成提示
         prompt = f"""You are playing an iterated game against {opponent_name}.
