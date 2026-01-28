@@ -4,7 +4,7 @@ Game Theory Module - Define game types and payoff matrices
 """
 from enum import Enum
 from dataclasses import dataclass
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple
 
 
 class Action(Enum):
