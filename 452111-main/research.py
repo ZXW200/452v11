@@ -36,7 +36,7 @@ plt.rcParams['axes.unicode_minus'] = False
 # 博弈论模块导入
 from game_theory.games import (
     PRISONERS_DILEMMA, SNOWDRIFT, STAG_HUNT,
-    Action, GameConfig, get_payoff, get_payoff_description, GAME_REGISTRY
+    Action, get_payoff, GAME_REGISTRY
 )
 from game_theory.llm_strategy import LLMStrategy
 from game_theory.strategies import (
@@ -44,7 +44,7 @@ from game_theory.strategies import (
     GrimTrigger, Pavlov, RandomStrategy
 )
 from game_theory.network import (
-    FullyConnectedNetwork, SmallWorldNetwork, ScaleFreeNetwork, NETWORK_REGISTRY
+    FullyConnectedNetwork, SmallWorldNetwork, NETWORK_REGISTRY
 )
 from game_theory.simulation import AgentState, GameSimulation
 

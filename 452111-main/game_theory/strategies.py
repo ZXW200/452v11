@@ -5,13 +5,10 @@ Strategy Library - Define various game strategies
 注意: LLMStrategy 已移至独立模块 llm_strategy.py
 """
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Optional, TYPE_CHECKING
+from typing import List, Tuple, Optional
 import random
 
 from .games import Action
-
-if TYPE_CHECKING:
-    from persona.persona import Persona
 
 
 class Strategy(ABC):
