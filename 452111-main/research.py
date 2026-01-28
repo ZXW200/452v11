@@ -474,11 +474,11 @@ class AnomalyRecorder:
         self.records = []
 
     def save_to_file(self, result_manager: 'ResultManager', experiment_name: str):
-        """保存异常记录到 CSV 文件"""
+        """保存异常记录到 anomalies/ 目录"""
         if not self.records:
             return None
 
-        filepath = os.path.join(result_manager.summary_dir, f"{experiment_name}_anomalies.csv")
+        filepath = os.path.join(result_manager.anomalies_dir, f"{experiment_name}_anomalies.csv")
         fieldnames = ["experiment", "game", "provider", "condition", "trial", "rounds", "coop_rate_pct", "payoff"]
 
         with open(filepath, "w", encoding="utf-8", newline="") as f:
