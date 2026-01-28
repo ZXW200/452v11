@@ -171,7 +171,7 @@ class ResultManager:
             writer.writeheader()
             writer.writerows(records)
 
-        print(f"  Rounds: {filepath}")
+        print(f"  {exp} Rounds: {filepath}")
         return filepath
 
     def save_stats(self, exp: str, game: str, condition: str, data: Dict) -> str:
@@ -182,7 +182,7 @@ class ResultManager:
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
 
-        print(f"  Stats: {filepath}")
+        print(f"  {exp} Stats: {filepath}")
         return filepath
 
     def save_fig(self, exp: str, game: str, condition: str, fig: plt.Figure) -> str:
@@ -193,7 +193,7 @@ class ResultManager:
         fig.savefig(filepath, dpi=150, bbox_inches='tight')
         plt.close(fig)
 
-        print(f"  Figure: {filepath}")
+        print(f"  {exp} Figure: {filepath}")
         return filepath
 
     def save_anomaly(self, exp: str, records: List[Dict]) -> str:
@@ -210,7 +210,7 @@ class ResultManager:
             writer.writeheader()
             writer.writerows(records)
 
-        print(f"  Anomalies: {filepath}")
+        print(f"  {exp} Anomalies: {filepath}")
         return filepath
 
     # ========== 兼容旧代码的方法（后续逐步替换） ==========
@@ -226,7 +226,7 @@ class ResultManager:
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
 
-        print(f"  Saved: {filepath}")
+        print(f"  {experiment_name} Saved: {filepath}")
         return filepath
 
     def save_figure(self, game_name: str, experiment_name: str, fig: plt.Figure) -> str:
@@ -236,7 +236,7 @@ class ResultManager:
         fig.savefig(filepath, dpi=150, bbox_inches='tight')
         plt.close(fig)
 
-        print(f"  Saved: {filepath}")
+        print(f"  {experiment_name} Saved: {filepath}")
         return filepath
 
     def save_config(self, config: Dict):
@@ -260,7 +260,7 @@ class ResultManager:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
 
-        print(f"  Saved: {filepath}")
+        print(f"  {experiment_name} Saved: {filepath}")
         return filepath
 
     def save_detail(self, experiment_name: str, provider: str, trial: int, rounds: int, data: Dict) -> str:
@@ -287,7 +287,7 @@ class ResultManager:
             writer.writeheader()
             writer.writerows(records)
 
-        print(f"  Rounds: {filepath}")
+        print(f"  {experiment_name} Rounds: {filepath}")
         return filepath
 
     def save_rounds_csv(self, experiment_name: str, game_name: str, network_name: str, records: List[Dict]) -> str:
@@ -304,7 +304,7 @@ class ResultManager:
             writer.writeheader()
             writer.writerows(records)
 
-        print(f"  Rounds: {filepath}")
+        print(f"  {experiment_name} Rounds: {filepath}")
         return filepath
 
     def save_experiment_summary(self, experiment_name: str, data: Dict) -> str:
@@ -319,7 +319,7 @@ class ResultManager:
                 writer.writeheader()
                 writer.writerows(rows)
 
-        print(f"  Summary: {filepath}")
+        print(f"  {experiment_name} Summary: {filepath}")
         return filepath
 
     def _flatten_summary_to_rows(self, experiment_name: str, data: Dict) -> List[Dict]:
@@ -486,7 +486,7 @@ class AnomalyRecorder:
             writer.writeheader()
             writer.writerows(self.records)
 
-        print(f"  Anomalies: {filepath} ({len(self.records)} records)")
+        print(f"  {experiment_name} Anomalies: {filepath} ({len(self.records)} records)")
         return filepath
 
 
