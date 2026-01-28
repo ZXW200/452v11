@@ -194,6 +194,68 @@ class SuspiciousTitForTat(Strategy):
         return history[-1][1]
 
 
+class GenerousTitForTat(Strategy):
+    """
+    宽容的以牙还牙 / Generous Tit for Tat (GTFT)
+    类似TFT，但有一定概率原谅对手的背叛
+    """
+    name = "Generous Tit for Tat"
+    description = "Like TFT, but forgive defection with some probability"
+    description_cn = "类似以牙还牙，但有一定概率原谅背叛"
+
+    def __init__(self, forgiveness: float = 0.1):
+        """
+        Args:
+            forgiveness: 原谅概率，默认0.1
+        """
+        self.forgiveness = forgiveness
+
+    def choose_action(self, history, opponent_name=None) -> Action:
+        if not history:
+            return Action.COOPERATE
+        # 如果对手上轮背叛，有一定概率原谅
+        if history[-1][1] == Action.DEFECT:
+            if random.random() < self.forgiveness:
+                return Action.COOPERATE
+            return Action.DEFECT
+        return Action.COOPERATE
+
+
+class Extort2(Strategy):
+    """
+    勒索策略 / Extort-2 (Zero-Determinant Strategy)
+    Press & Dyson (2012) 提出的零行列式策略
+    确保自己的收益是对手超额收益的两倍
+    """
+    name = "Extort-2"
+    description = "Zero-determinant strategy that extorts opponent"
+    description_cn = "零行列式勒索策略，确保收益优势"
+
+    def choose_action(self, history, opponent_name=None) -> Action:
+        if not history:
+            # 第一轮合作
+            return Action.COOPERATE
+
+        my_last, opp_last = history[-1]
+
+        # 根据上轮结果决定本轮合作概率
+        # 经典 Extort-2 参数 (针对标准囚徒困境 T=5,R=3,P=1,S=0)
+        if my_last == Action.COOPERATE and opp_last == Action.COOPERATE:
+            # CC: 合作概率 8/9
+            p = 8/9
+        elif my_last == Action.COOPERATE and opp_last == Action.DEFECT:
+            # CD: 合作概率 1/2
+            p = 1/2
+        elif my_last == Action.DEFECT and opp_last == Action.COOPERATE:
+            # DC: 合作概率 1/3
+            p = 1/3
+        else:
+            # DD: 合作概率 0
+            p = 0
+
+        return Action.COOPERATE if random.random() < p else Action.DEFECT
+
+
 class GradualStrategy(Strategy):
     """
     渐进策略 / Gradual
@@ -287,7 +349,9 @@ STRATEGY_REGISTRY = {
     "grim_trigger": GrimTrigger,
     "pavlov": Pavlov,
     "suspicious_tit_for_tat": SuspiciousTitForTat,
+    "generous_tit_for_tat": GenerousTitForTat,
     "gradual": GradualStrategy,
+    "extort2": Extort2,
 
     # 概率策略
     "probabilistic": ProbabilisticCooperator,

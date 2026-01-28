@@ -40,8 +40,9 @@ from game_theory.games import (
 )
 from game_theory.llm_strategy import LLMStrategy
 from game_theory.strategies import (
-    TitForTat, AlwaysCooperate, AlwaysDefect,
-    GrimTrigger, Pavlov, RandomStrategy
+    TitForTat, TitForTwoTats, AlwaysDefect,
+    GrimTrigger, Pavlov, RandomStrategy, SuspiciousTitForTat,
+    GenerousTitForTat, Extort2, GradualStrategy
 )
 from game_theory.network import (
     FullyConnectedNetwork, SmallWorldNetwork, NETWORK_REGISTRY
@@ -1969,7 +1970,8 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
     def run(self) -> Dict:
         print_separator(f"实验5b: {self.description}")
         display_providers = [normalize_provider_name(p) for p in self.providers]
-        print(f"Agent数量: {self.n_agents} | Providers: {display_providers}")
+        n_total = len(self.providers) + 8  # 3 LLM + 8 Classic
+        print(f"Agent数量: {n_total} ({len(self.providers)} LLM + 8 Classic) | Providers: {display_providers}")
         print(f"网络: {self.networks} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
@@ -1997,41 +1999,31 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
 
                         strategies = []
 
-                        min_llms = len(self.providers)  # 至少每个 provider 1个
-                        target_llms = self.n_agents // 2  # 目标 50%
-                        n_llm_total = max(min_llms, target_llms)  # 取较大值
-                        n_llm_total = min(n_llm_total, self.n_agents)  # 防止超过总数
-                        n_classic = self.n_agents - n_llm_total
+                        # 固定分配: 3 LLM (每个 provider 1个) + 8 经典策略 = 11 agents
+                        n_llm_total = len(self.providers)  # 每个 provider 1个 LLM
+                        n_classic = 8  # 固定 8 个经典策略
 
-                        base_count = n_llm_total // len(self.providers)
-                        remainder = n_llm_total % len(self.providers)
-                        llm_counts = [base_count + 1 if k < remainder else base_count for k in range(len(self.providers))]
-
-                        # LLM agents: 使用匿名名字
-                        current_llm_idx = 1
+                        # LLM agents: 使用匿名名字，每个 provider 1个
                         agent_idx = 1
-                        for provider, count in zip(self.providers, llm_counts):
+                        for provider in self.providers:
                             display_name = normalize_provider_name(provider)
-                            for _ in range(count):
-                                anon_name = f"Player_{agent_idx}"
-                                real_name = f"LLM_{display_name}_{current_llm_idx}"
-                                strategy_map[anon_name] = real_name
-                                strategies.append((
-                                    anon_name,
-                                    LLMStrategy(provider=provider, mode="hybrid", game_config=game_config)
-                                ))
-                                current_llm_idx += 1
-                                agent_idx += 1
-
-                        # Classic agents: 使用匿名名字，隐藏真实策略
-                        classic_classes = [
-                            TitForTat, AlwaysCooperate, AlwaysDefect,
-                            Pavlov, GrimTrigger, RandomStrategy
-                        ]
-                        for k in range(n_classic):
-                            StrategyClass = classic_classes[k % len(classic_classes)]
                             anon_name = f"Player_{agent_idx}"
-                            real_name = f"{StrategyClass.__name__}_{k + 1}"
+                            real_name = f"LLM_{display_name}"
+                            strategy_map[anon_name] = real_name
+                            strategies.append((
+                                anon_name,
+                                LLMStrategy(provider=provider, mode="hybrid", game_config=game_config)
+                            ))
+                            agent_idx += 1
+
+                        # Classic agents: 8 个不同策略，使用匿名名字
+                        classic_classes = [
+                            TitForTat, TitForTwoTats, GenerousTitForTat, Extort2,
+                            Pavlov, GrimTrigger, AlwaysDefect, RandomStrategy
+                        ]
+                        for k, StrategyClass in enumerate(classic_classes):
+                            anon_name = f"Player_{agent_idx}"
+                            real_name = StrategyClass.__name__
                             strategy_map[anon_name] = real_name
                             strategies.append((
                                 anon_name,
