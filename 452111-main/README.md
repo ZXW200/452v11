@@ -1,6 +1,6 @@
 # Game Theory LLM Multi-Agent Research
 
-博弈论 LLM 多智能体研究框架 v0.5.0 (v14)
+博弈论 LLM 多智能体研究框架 v0.5.1 (v15)
 
 研究大语言模型在经典博弈场景（囚徒困境、雪堆博弈、猎鹿博弈、和谐博弈）中的决策行为。
 
@@ -145,6 +145,17 @@ results/{timestamp}/
 - **Ollama** - 本地模型
 
 ## 版本历史
+
+### v0.5.1 (v15)
+- 修复 Exp4 除零错误：`coop_rate_dict` 为空时的防护
+- 添加 providers 参数验证：Exp3/Exp4/Exp5b 防止空列表输入
+- 增强策略健壮性：GrimTrigger/GradualStrategy 添加自动状态重置
+
+### v0.5.0 (v14)
+- 修复 LLMStrategy 与 GameSimulation 参数格式不匹配
+- 修复 AnomalyRecorder 输出目录错误
+- 修复 pure/hybrid 模式历史窗口不一致
+- 添加除零保护
 
 ### v0.4.0 (v13)
 - 重构输出目录结构：raw/, rounds/, stats/, figures/, anomalies/

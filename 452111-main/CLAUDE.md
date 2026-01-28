@@ -148,6 +148,18 @@ class ResultManager:
 
 ## 更新日志
 
+### v0.5.1 (v15)
+- **修复 Exp4 除零错误**
+  - `research.py:1249` 当 `coop_rate_dict` 为空时添加防护
+- **添加 providers 参数验证**
+  - Exp3: 至少需要 1 个 provider
+  - Exp4: 至少需要 2 个 provider（用于配对对战）
+  - Exp5b: 至少需要 1 个 provider
+- **增强策略健壮性**
+  - GrimTrigger: 添加自动状态重置（history 为空但 triggered 为 true 时）
+  - GradualStrategy: 添加自动状态重置（history 为空但有未完成状态时）
+  - 防止策略实例复用时的状态泄漏
+
 ### v0.5.0 (v14)
 - **修复 LLMStrategy 与 GameSimulation 参数格式不匹配**
   - `choose_action(history: List[Tuple], ...)` 统一为元组列表格式
