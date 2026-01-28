@@ -1961,7 +1961,6 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
 
     def __init__(self, result_manager: ResultManager, **kwargs):
         super().__init__(result_manager, **kwargs)
-        self.n_agents = kwargs.get("n_agents", 10)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
         self.providers = [resolve_provider_name(p) for p in raw_providers]
         if not self.providers:
@@ -2100,7 +2099,7 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                             "providers": display_providers,
                             "trial": i + 1,
                             "rounds": self.rounds,
-                            "n_agents": self.n_agents,
+                            "n_agents": len(strategies),
                             "payoffs": trial_payoffs,
                             "coop_rates": trial_coop_rates,
                             "llm_responses": llm_responses,
@@ -2632,13 +2631,15 @@ def main():
     }
 
     # 保存实验配置（显示用 normalize 后的名称）
+    # exp5b 固定 3 LLM + 8 Classic = 11 agents
+    config_n_agents = 11 if experiment == "exp5b" else n_agents
     config = {
         "experiment": experiment,
         "provider": normalize_provider_name(provider),
         "n_repeats": n_repeats,
         "rounds": rounds,
         "games": games or list(GAME_REGISTRY.keys()),
-        "n_agents": n_agents,
+        "n_agents": config_n_agents,
         "provider1": normalize_provider_name(provider1 if provider1 else provider),
         "provider2": normalize_provider_name(provider2 if provider2 else provider),
         "timestamp": result_manager.timestamp,
