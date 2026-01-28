@@ -2098,7 +2098,7 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                             "providers": display_providers,
                             "trial": i + 1,
                             "rounds": self.rounds,
-                            "n_agents": self.n_agents,
+                            "n_agents": len(strategies),
                             "payoffs": trial_payoffs,
                             "coop_rates": trial_coop_rates,
                             "llm_responses": llm_responses,
