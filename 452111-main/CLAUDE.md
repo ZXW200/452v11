@@ -78,8 +78,9 @@ class BaseExperiment:
 
 # LLM 策略
 class LLMStrategy:
-    def choose_action(self, my_history, opp_history, ...)
-    def generate_message(...)  # Cheap Talk 消息生成
+    def choose_action(self, history: List[Tuple], opponent_name, opponent_message)
+    def generate_message(self, history: List[Tuple], opponent_name)  # Cheap Talk 消息生成
+    def reset()  # 重置状态（total_payoff, raw_responses, parser stats）
 
 # 结果管理
 class ResultManager:
@@ -146,6 +147,18 @@ class ResultManager:
 6. **更新日志**（在下方记录，包含本次修改内容）
 
 ## 更新日志
+
+### v0.5.0 (v14)
+- **修复 LLMStrategy 与 GameSimulation 参数格式不匹配**
+  - `choose_action(history: List[Tuple], ...)` 统一为元组列表格式
+  - `generate_message(history: List[Tuple], ...)` 同步更新
+  - research.py 调用点使用 `make_history_tuples()` 转换格式
+- **修复 AnomalyRecorder 输出目录错误**
+  - 从 `stats/` 改为 `anomalies/`，与目录结构设计一致
+- **修复 pure/hybrid 模式历史窗口不一致**
+  - pure 模式合作率计算现在也应用 `history_window` 限制
+- **添加除零保护**
+  - `_build_hybrid_prompt` 中 `opp_coop_rate` 计算添加边界检查
 
 ### v0.4.0 (v13)
 - 重构 ResultManager 输出目录结构
