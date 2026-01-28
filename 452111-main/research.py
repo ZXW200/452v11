@@ -40,6 +40,7 @@ from game_theory.games import (
 )
 from game_theory.llm_strategy import LLMStrategy
 from game_theory.strategies import (
+    AlwaysCooperate,
     TitForTat, TitForTwoTats, AlwaysDefect,
     GrimTrigger, Pavlov, RandomStrategy, SuspiciousTitForTat,
     GenerousTitForTat, Extort2, GradualStrategy
@@ -2674,3 +2675,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
