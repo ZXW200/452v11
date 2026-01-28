@@ -112,7 +112,7 @@ class ResultManager:
 
 ## 版本更新规则
 
-每次合并代码时，需要更新以下内容：
+**每次创建 Pull Request 时，必须更新版本号：**
 
 1. **版本号** (`game_theory/__init__.py`)
    ```python
@@ -124,9 +124,20 @@ class ResultManager:
    博弈论 LLM 研究实验脚本 vN
    ```
 
-3. **更新日志**（在下方记录）
+3. **更新日志**（在下方记录，包含本次修改内容）
 
 ## 更新日志
+
+### v0.4.0 (v13)
+- 重构 ResultManager 输出目录结构
+  - 新目录: raw/, rounds/, stats/, figures/, anomalies/
+  - raw/: 原始试验数据 (JSON)
+  - rounds/: 轮次数据 (CSV)，便于 pandas 分析
+  - stats/: 统计汇总
+  - figures/: 所有图表
+  - anomalies/: 异常记录
+- 新增统一保存接口: save_trial(), save_rounds(), save_stats(), save_fig(), save_anomaly()
+- 保留旧方法兼容性，自动输出到新目录
 
 ### v0.3.0 (v12)
 - 统一版本号管理（research.py、__init__.py、CLAUDE.md 版本号一致）
