@@ -113,7 +113,11 @@ class ResultManager:
     ├── summary.json                # 全局汇总
     └── {exp}/                      # 每个实验的独立目录
         ├── raw/                    # 原始数据（每次trial的完整记录）
-        │   └── {game}_{condition}_trial{N}.json
+        │   ├── pd/                 # 囚徒困境
+        │   ├── snowdrift/          # 雪堆博弈
+        │   ├── stag_hunt/          # 猎鹿博弈
+        │   └── harmony/            # 和谐博弈
+        │       └── {condition}_trial{N}.json
         ├── rounds/                 # 轮次数据（统一CSV格式）
         │   └── {game}_{condition}_rounds.csv
         ├── stats/                  # 统计汇总
@@ -148,6 +152,13 @@ class ResultManager:
 
         return full_dir
 
+    def _get_raw_game_dir(self, exp: str, game: str) -> str:
+        """获取 raw 下的游戏子目录，如 results/{timestamp}/{exp}/raw/{game}"""
+        raw_dir = self._get_exp_dir(exp, "raw")
+        game_dir = os.path.join(raw_dir, game)
+        os.makedirs(game_dir, exist_ok=True)
+        return game_dir
+
     def _extract_exp(self, experiment_name: str) -> str:
         """从 experiment_name 中提取实验编号（如 exp1_pure_vs_hybrid -> exp1）"""
         # 假设 experiment_name 以 expN_ 开头
@@ -159,9 +170,9 @@ class ResultManager:
     # ========== 新的统一保存接口 ==========
 
     def save_trial(self, exp: str, game: str, condition: str, trial: int, data: Dict) -> str:
-        """保存单次试验原始数据到 {exp}/raw/ 目录"""
-        filename = f"{game}_{condition}_trial{trial}.json"
-        filepath = os.path.join(self._get_exp_dir(exp, "raw"), filename)
+        """保存单次试验原始数据到 {exp}/raw/{game}/ 目录"""
+        filename = f"{condition}_trial{trial}.json"
+        filepath = os.path.join(self._get_raw_game_dir(exp, game), filename)
 
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
@@ -231,9 +242,9 @@ class ResultManager:
         return self.root_dir
 
     def save_json(self, game_name: str, experiment_name: str, data: Dict) -> str:
-        """[兼容] 保存 JSON 数据 -> 现在保存到 {exp}/raw/"""
+        """[兼容] 保存 JSON 数据 -> 现在保存到 {exp}/raw/{game}/"""
         exp = self._extract_exp(experiment_name)
-        filepath = os.path.join(self._get_exp_dir(exp, "raw"), f"{experiment_name}.json")
+        filepath = os.path.join(self._get_raw_game_dir(exp, game_name), f"{experiment_name}.json")
 
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
@@ -267,9 +278,9 @@ class ResultManager:
         print(f"Summary saved: {filepath}")
 
     def save_transcript(self, game_name: str, experiment_name: str, content: str) -> str:
-        """[兼容] 保存 transcript -> 现在保存到 {exp}/raw/"""
+        """[兼容] 保存 transcript -> 现在保存到 {exp}/raw/{game}/"""
         exp = self._extract_exp(experiment_name)
-        filepath = os.path.join(self._get_exp_dir(exp, "raw"), f"{experiment_name}_transcript.txt")
+        filepath = os.path.join(self._get_raw_game_dir(exp, game_name), f"{experiment_name}_transcript.txt")
 
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
@@ -277,11 +288,11 @@ class ResultManager:
         print(f"  {exp} Saved: {filepath}")
         return filepath
 
-    def save_detail(self, experiment_name: str, provider: str, trial: int, rounds: int, data: Dict) -> str:
-        """[兼容] 保存单次实验详细数据 -> 现在保存到 {exp}/raw/"""
+    def save_detail(self, experiment_name: str, game_name: str, provider: str, trial: int, rounds: int, data: Dict) -> str:
+        """[兼容] 保存单次实验详细数据 -> 现在保存到 {exp}/raw/{game}/"""
         exp = self._extract_exp(experiment_name)
         filename = f"{experiment_name}_{provider}_trial{trial}.json"
-        filepath = os.path.join(self._get_exp_dir(exp, "raw"), filename)
+        filepath = os.path.join(self._get_raw_game_dir(exp, game_name), filename)
 
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
@@ -762,7 +773,7 @@ class Exp1_PureVsHybrid(BaseExperiment):
                             "opp_history": [a.name for a in opp_history],
                             "llm_responses": llm_strategy.raw_responses.copy(),
                         }
-                        self.result_manager.save_detail(f"exp1_{game_name}_{mode}", normalize_provider_name(self.provider), trial + 1, self.rounds, detail_data)
+                        self.result_manager.save_detail(f"exp1_{game_name}_{mode}", game_name, normalize_provider_name(self.provider), trial + 1, self.rounds, detail_data)
 
                         print(f"Payoff: {llm_payoff:.1f}, Coop rate: {coop_rate:.1%}, Parse: {success_rate:.0%}")
 
@@ -1590,7 +1601,7 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
                             "player1_responses": llm1.raw_responses.copy(),
                             "player2_responses": llm2.raw_responses.copy(),
                         }
-                        self.result_manager.save_detail(f"exp4b_{game_name}_{mode}", provider_label, trial + 1, self.rounds, detail_data)
+                        self.result_manager.save_detail(f"exp4b_{game_name}_{mode}", game_name, provider_label, trial + 1, self.rounds, detail_data)
 
                         avg_coop = (coop_rate_1 + coop_rate_2) / 2
                         print(f"Total: {total_payoff:.1f}, Avg coop: {avg_coop:.1%}")
@@ -2095,7 +2106,7 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                             "coop_rates": trial_coop_rates,
                             "llm_responses": llm_responses,
                         }
-                        self.result_manager.save_detail(f"exp5b_{game_name}_{network_name}", "multi", i + 1, self.rounds, detail_data)
+                        self.result_manager.save_detail(f"exp5b_{game_name}_{network_name}", game_name, "multi", i + 1, self.rounds, detail_data)
 
                         print("Done")
 
@@ -2358,7 +2369,7 @@ class Exp6_Baseline(BaseExperiment):
                                 "opp_history": [a.name for a in opp_history],
                                 "llm_responses": llm_strategy.raw_responses.copy(),
                             }
-                            self.result_manager.save_detail(f"exp6_{game_name}_{baseline_name}", display_name, trial + 1, self.rounds, detail_data)
+                            self.result_manager.save_detail(f"exp6_{game_name}_{baseline_name}", game_name, display_name, trial + 1, self.rounds, detail_data)
 
                             print(f"Payoff: {llm_payoff:.1f}, Coop rate: {coop_rate:.1%}")
 
