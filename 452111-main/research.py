@@ -111,16 +111,17 @@ class ResultManager:
     results/{timestamp}/
     ├── config.json                 # 实验配置
     ├── summary.json                # 全局汇总
-    ├── raw/                        # 原始数据（每次trial的完整记录）
-    │   └── {exp}_{game}_{condition}_trial{N}.json
-    ├── rounds/                     # 轮次数据（统一CSV格式）
-    │   └── {exp}_{game}_{condition}_rounds.csv
-    ├── stats/                      # 统计汇总（按实验）
-    │   └── {exp}_summary.csv
-    ├── figures/                    # 所有图表
-    │   └── {exp}_{game}_{condition}.png
-    └── anomalies/                  # 异常记录
-        └── {exp}_anomalies.csv
+    └── {exp}/                      # 每个实验的独立目录
+        ├── raw/                    # 原始数据（每次trial的完整记录）
+        │   └── {game}_{condition}_trial{N}.json
+        ├── rounds/                 # 轮次数据（统一CSV格式）
+        │   └── {game}_{condition}_rounds.csv
+        ├── stats/                  # 统计汇总
+        │   └── {exp}_summary.csv
+        ├── figures/                # 图表
+        │   └── {game}_{condition}.png
+        └── anomalies/              # 异常记录
+            └── anomalies.csv
     """
 
     def __init__(self, base_dir: str = "results"):
@@ -129,28 +130,38 @@ class ResultManager:
         self.root_dir = os.path.join(base_dir, self.timestamp)
         os.makedirs(self.root_dir, exist_ok=True)
 
-        # 新的统一目录结构
-        self.raw_dir = os.path.join(self.root_dir, "raw")
-        self.rounds_dir = os.path.join(self.root_dir, "rounds")
-        self.stats_dir = os.path.join(self.root_dir, "stats")
-        self.figures_dir = os.path.join(self.root_dir, "figures")
-        self.anomalies_dir = os.path.join(self.root_dir, "anomalies")
-
-        for d in [self.raw_dir, self.rounds_dir, self.stats_dir, self.figures_dir, self.anomalies_dir]:
-            os.makedirs(d, exist_ok=True)
-
-        # 兼容旧代码（后续删除）
-        self.details_dir = self.raw_dir
-        self.summary_dir = self.stats_dir
+        # 缓存已创建的实验目录
+        self._exp_dirs_created = set()
 
         print(f"Results dir: {self.root_dir}")
+
+    def _get_exp_dir(self, exp: str, subdir: str) -> str:
+        """获取实验特定的子目录，如 results/{timestamp}/{exp}/{subdir}"""
+        exp_dir = os.path.join(self.root_dir, exp)
+        full_dir = os.path.join(exp_dir, subdir)
+
+        # 只在首次访问时创建目录
+        if exp not in self._exp_dirs_created:
+            for d in ["raw", "rounds", "stats", "figures", "anomalies"]:
+                os.makedirs(os.path.join(exp_dir, d), exist_ok=True)
+            self._exp_dirs_created.add(exp)
+
+        return full_dir
+
+    def _extract_exp(self, experiment_name: str) -> str:
+        """从 experiment_name 中提取实验编号（如 exp1_pure_vs_hybrid -> exp1）"""
+        # 假设 experiment_name 以 expN_ 开头
+        parts = experiment_name.split("_")
+        if parts and parts[0].startswith("exp"):
+            return parts[0]
+        return experiment_name  # fallback
 
     # ========== 新的统一保存接口 ==========
 
     def save_trial(self, exp: str, game: str, condition: str, trial: int, data: Dict) -> str:
-        """保存单次试验原始数据到 raw/ 目录"""
-        filename = f"{exp}_{game}_{condition}_trial{trial}.json"
-        filepath = os.path.join(self.raw_dir, filename)
+        """保存单次试验原始数据到 {exp}/raw/ 目录"""
+        filename = f"{game}_{condition}_trial{trial}.json"
+        filepath = os.path.join(self._get_exp_dir(exp, "raw"), filename)
 
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
@@ -158,9 +169,9 @@ class ResultManager:
         return filepath
 
     def save_rounds(self, exp: str, game: str, condition: str, records: List[Dict]) -> str:
-        """保存轮次记录到 rounds/ 目录（CSV格式）"""
-        filename = f"{exp}_{game}_{condition}_rounds.csv"
-        filepath = os.path.join(self.rounds_dir, filename)
+        """保存轮次记录到 {exp}/rounds/ 目录（CSV格式）"""
+        filename = f"{game}_{condition}_rounds.csv"
+        filepath = os.path.join(self._get_exp_dir(exp, "rounds"), filename)
 
         if not records:
             return filepath
@@ -175,9 +186,9 @@ class ResultManager:
         return filepath
 
     def save_stats(self, exp: str, game: str, condition: str, data: Dict) -> str:
-        """保存统计数据到 stats/ 目录"""
-        filename = f"{exp}_{game}_{condition}_stats.json"
-        filepath = os.path.join(self.stats_dir, filename)
+        """保存统计数据到 {exp}/stats/ 目录"""
+        filename = f"{game}_{condition}_stats.json"
+        filepath = os.path.join(self._get_exp_dir(exp, "stats"), filename)
 
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
@@ -186,9 +197,9 @@ class ResultManager:
         return filepath
 
     def save_fig(self, exp: str, game: str, condition: str, fig: plt.Figure) -> str:
-        """保存图表到 figures/ 目录"""
-        filename = f"{exp}_{game}_{condition}.png"
-        filepath = os.path.join(self.figures_dir, filename)
+        """保存图表到 {exp}/figures/ 目录"""
+        filename = f"{game}_{condition}.png"
+        filepath = os.path.join(self._get_exp_dir(exp, "figures"), filename)
 
         fig.savefig(filepath, dpi=150, bbox_inches='tight')
         plt.close(fig)
@@ -197,9 +208,9 @@ class ResultManager:
         return filepath
 
     def save_anomaly(self, exp: str, records: List[Dict]) -> str:
-        """保存异常记录到 anomalies/ 目录"""
-        filename = f"{exp}_anomalies.csv"
-        filepath = os.path.join(self.anomalies_dir, filename)
+        """保存异常记录到 {exp}/anomalies/ 目录"""
+        filename = "anomalies.csv"
+        filepath = os.path.join(self._get_exp_dir(exp, "anomalies"), filename)
 
         if not records:
             return filepath
@@ -216,27 +227,29 @@ class ResultManager:
     # ========== 兼容旧代码的方法（后续逐步替换） ==========
 
     def get_game_dir(self, game_name: str) -> str:
-        """[兼容] 获取博弈类型目录 -> 现在返回 raw_dir"""
-        return self.raw_dir
+        """[兼容] 获取博弈类型目录 -> 返回 root_dir（不推荐使用）"""
+        return self.root_dir
 
     def save_json(self, game_name: str, experiment_name: str, data: Dict) -> str:
-        """[兼容] 保存 JSON 数据 -> 现在保存到 raw/"""
-        filepath = os.path.join(self.raw_dir, f"{experiment_name}.json")
+        """[兼容] 保存 JSON 数据 -> 现在保存到 {exp}/raw/"""
+        exp = self._extract_exp(experiment_name)
+        filepath = os.path.join(self._get_exp_dir(exp, "raw"), f"{experiment_name}.json")
 
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
 
-        print(f"  {experiment_name} Saved: {filepath}")
+        print(f"  {exp} Saved: {filepath}")
         return filepath
 
     def save_figure(self, game_name: str, experiment_name: str, fig: plt.Figure) -> str:
-        """[兼容] 保存图表 -> 现在保存到 figures/"""
-        filepath = os.path.join(self.figures_dir, f"{experiment_name}.png")
+        """[兼容] 保存图表 -> 现在保存到 {exp}/figures/"""
+        exp = self._extract_exp(experiment_name)
+        filepath = os.path.join(self._get_exp_dir(exp, "figures"), f"{experiment_name}.png")
 
         fig.savefig(filepath, dpi=150, bbox_inches='tight')
         plt.close(fig)
 
-        print(f"  {experiment_name} Saved: {filepath}")
+        print(f"  {exp} Saved: {filepath}")
         return filepath
 
     def save_config(self, config: Dict):
@@ -254,19 +267,21 @@ class ResultManager:
         print(f"Summary saved: {filepath}")
 
     def save_transcript(self, game_name: str, experiment_name: str, content: str) -> str:
-        """[兼容] 保存 transcript -> 现在保存到 raw/"""
-        filepath = os.path.join(self.raw_dir, f"{experiment_name}_transcript.txt")
+        """[兼容] 保存 transcript -> 现在保存到 {exp}/raw/"""
+        exp = self._extract_exp(experiment_name)
+        filepath = os.path.join(self._get_exp_dir(exp, "raw"), f"{experiment_name}_transcript.txt")
 
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
 
-        print(f"  {experiment_name} Saved: {filepath}")
+        print(f"  {exp} Saved: {filepath}")
         return filepath
 
     def save_detail(self, experiment_name: str, provider: str, trial: int, rounds: int, data: Dict) -> str:
-        """[兼容] 保存单次实验详细数据 -> 现在保存到 raw/"""
+        """[兼容] 保存单次实验详细数据 -> 现在保存到 {exp}/raw/"""
+        exp = self._extract_exp(experiment_name)
         filename = f"{experiment_name}_{provider}_trial{trial}.json"
-        filepath = os.path.join(self.raw_dir, filename)
+        filepath = os.path.join(self._get_exp_dir(exp, "raw"), filename)
 
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
@@ -274,9 +289,10 @@ class ResultManager:
         return filepath
 
     def save_round_records(self, experiment_name: str, game_name: str, provider: str, records: List[Dict]) -> str:
-        """[兼容] 保存每轮记录 -> 现在保存 CSV 到 rounds/"""
+        """[兼容] 保存每轮记录 -> 现在保存 CSV 到 {exp}/rounds/"""
+        exp = self._extract_exp(experiment_name)
         filename = f"{experiment_name}_{game_name}_{provider}_rounds.csv"
-        filepath = os.path.join(self.rounds_dir, filename)
+        filepath = os.path.join(self._get_exp_dir(exp, "rounds"), filename)
 
         if not records:
             return filepath
@@ -287,13 +303,14 @@ class ResultManager:
             writer.writeheader()
             writer.writerows(records)
 
-        print(f"  {experiment_name} Rounds: {filepath}")
+        print(f"  {exp} Rounds: {filepath}")
         return filepath
 
     def save_rounds_csv(self, experiment_name: str, game_name: str, network_name: str, records: List[Dict]) -> str:
-        """[兼容] 保存每轮记录为 CSV -> 现在保存到 rounds/"""
+        """[兼容] 保存每轮记录为 CSV -> 现在保存到 {exp}/rounds/"""
+        exp = self._extract_exp(experiment_name)
         filename = f"{experiment_name}_{game_name}_{network_name}_rounds.csv"
-        filepath = os.path.join(self.rounds_dir, filename)
+        filepath = os.path.join(self._get_exp_dir(exp, "rounds"), filename)
 
         if not records:
             return filepath
@@ -304,12 +321,13 @@ class ResultManager:
             writer.writeheader()
             writer.writerows(records)
 
-        print(f"  {experiment_name} Rounds: {filepath}")
+        print(f"  {exp} Rounds: {filepath}")
         return filepath
 
     def save_experiment_summary(self, experiment_name: str, data: Dict) -> str:
-        """保存实验汇总到 summary 目录 (CSV 格式)"""
-        filepath = os.path.join(self.summary_dir, f"{experiment_name}.csv")
+        """保存实验汇总到 {exp}/stats/ 目录 (CSV 格式)"""
+        exp = self._extract_exp(experiment_name)
+        filepath = os.path.join(self._get_exp_dir(exp, "stats"), f"{experiment_name}.csv")
 
         rows = self._flatten_summary_to_rows(experiment_name, data)
         if rows:
@@ -319,7 +337,7 @@ class ResultManager:
                 writer.writeheader()
                 writer.writerows(rows)
 
-        print(f"  {experiment_name} Summary: {filepath}")
+        print(f"  {exp} Summary: {filepath}")
         return filepath
 
     def _flatten_summary_to_rows(self, experiment_name: str, data: Dict) -> List[Dict]:
@@ -474,11 +492,12 @@ class AnomalyRecorder:
         self.records = []
 
     def save_to_file(self, result_manager: 'ResultManager', experiment_name: str):
-        """保存异常记录到 anomalies/ 目录"""
+        """保存异常记录到 {exp}/anomalies/ 目录"""
         if not self.records:
             return None
 
-        filepath = os.path.join(result_manager.anomalies_dir, f"{experiment_name}_anomalies.csv")
+        exp = result_manager._extract_exp(experiment_name)
+        filepath = os.path.join(result_manager._get_exp_dir(exp, "anomalies"), f"{experiment_name}_anomalies.csv")
         fieldnames = ["experiment", "game", "provider", "condition", "trial", "rounds", "coop_rate_pct", "payoff"]
 
         with open(filepath, "w", encoding="utf-8", newline="") as f:
@@ -486,7 +505,7 @@ class AnomalyRecorder:
             writer.writeheader()
             writer.writerows(self.records)
 
-        print(f"  {experiment_name} Anomalies: {filepath} ({len(self.records)} records)")
+        print(f"  {exp} Anomalies: {filepath} ({len(self.records)} records)")
         return filepath
 
 
