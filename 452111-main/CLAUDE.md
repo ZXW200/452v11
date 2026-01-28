@@ -8,7 +8,7 @@
 
 ```
 452111-main/
-├── research.py          # 主实验脚本 (v12)，包含所有实验类
+├── research.py          # 主实验脚本 (v16)，包含所有实验类
 ├── game_theory/         # 博弈论核心模块
 │   ├── games.py         # 博弈定义（囚徒困境、雪堆、猎鹿）
 │   ├── llm_api.py       # LLM API 封装（DeepSeek/OpenAI/Gemini）
@@ -147,6 +147,19 @@ class ResultManager:
 6. **更新日志**（在下方记录，包含本次修改内容）
 
 ## 更新日志
+
+### v0.5.2 (v16)
+- **重构 exp5b 智能体分配**
+  - 固定 3 LLM（每个 provider 1 个）+ 8 经典策略 = 11 agents
+  - 移除动态 n_agents 参数，改为固定分配
+  - 策略列表：TitForTat, TitForTwoTats, GenerousTitForTat, Extort2, Pavlov, GrimTrigger, AlwaysDefect, RandomStrategy
+- **新增经典策略** (`game_theory/strategies.py`)
+  - GenerousTitForTat: 宽容的以牙还牙，有概率原谅背叛
+  - Extort2: Press & Dyson (2012) 零行列式勒索策略
+- **修复 exp5b 崩溃**
+  - `self.n_agents` 在移除 `n_agents` 参数后未定义，导致运行时崩溃
+- **更换 OpenAI base URL**
+  - 从 `api.openai.com` 改为 `hiapi.online` 代理
 
 ### v0.5.1 (v15)
 - **修复 Exp4 除零错误**

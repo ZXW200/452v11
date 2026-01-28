@@ -1,6 +1,6 @@
 # Game Theory LLM Multi-Agent Research
 
-博弈论 LLM 多智能体研究框架 v0.5.1 (v15)
+博弈论 LLM 多智能体研究框架 v0.5.2 (v16)
 
 研究大语言模型在经典博弈场景（囚徒困境、雪堆博弈、猎鹿博弈、和谐博弈）中的决策行为。
 
@@ -38,7 +38,7 @@ python game_theory/llm_api.py setup
 | exp4 | `python research.py exp4` | Cheap Talk 三方对战 - 3个LLM Round-Robin 语言交流 |
 | exp4b | `python research.py exp4b` | Cheap Talk 一对一 - 指定双方LLM的语言交流博弈 |
 | exp5 | `python research.py exp5` | 群体动力学（单Provider） |
-| exp5b | `python research.py exp5b` | 群体动力学（多Provider混合） |
+| exp5b | `python research.py exp5b` | 群体动力学（多Provider混合，3 LLM + 8 经典策略） |
 | exp6 | `python research.py exp6` | Baseline 对比 - LLM vs 经典策略 |
 | all | `python research.py all` | 运行全部实验 |
 
@@ -65,7 +65,7 @@ python game_theory/llm_api.py setup
 | `--repeats` | 重复次数 | 3 |
 | `--rounds` | 每次轮数 | 20 |
 | `--games` | 博弈类型 (pd/snowdrift/stag_hunt/harmony/all) | all |
-| `--n_agents` | 群体动力学智能体数量 | 10 |
+| `--n_agents` | 群体动力学智能体数量（exp5b 固定为 11） | 10 |
 | `-h, --help` | 显示帮助信息 | - |
 
 ## 使用示例
@@ -145,6 +145,13 @@ results/{timestamp}/
 - **Ollama** - 本地模型
 
 ## 版本历史
+
+### v0.5.2 (v16)
+- 重构 exp5b 智能体分配：固定 3 LLM（每 provider 1个）+ 8 经典策略 = 11 agents
+- 新增经典策略：GenerousTitForTat（宽容以牙还牙）、Extort2（零行列式勒索策略）
+- 更新 exp5b 经典策略列表：TitForTat, TitForTwoTats, GenerousTitForTat, Extort2, Pavlov, GrimTrigger, AlwaysDefect, RandomStrategy
+- 修复 exp5b 崩溃：移除未使用的 n_agents 参数后 self.n_agents 未定义
+- 更换 OpenAI base URL 为 hiapi.online 代理
 
 ### v0.5.1 (v15)
 - 修复 Exp4 除零错误：`coop_rate_dict` 为空时的防护
