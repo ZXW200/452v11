@@ -140,8 +140,8 @@ results/{timestamp}/
 ## 支持的 LLM
 
 - **DeepSeek** - 默认，性价比最高
-- **OpenAI** - GPT-4o-mini
-- **Gemini** - Gemini 1.5 Flash
+- **OpenAI** - GPT-4o
+- **Gemini** - Gemini 3 Flash
 - **Ollama** - 本地模型
 
 ## 版本历史
