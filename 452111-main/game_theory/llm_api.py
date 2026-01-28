@@ -83,6 +83,7 @@ def get_api_key(provider: str) -> str:
     env_keys = {
         "openai": "OPENAI_API_KEY",
         "gemini": "GEMINI_API_KEY",
+        "moonshot": "GEMINI_API_KEY",  # moonshot 使用 GEMINI_API_KEY
         "deepseek": "DEEPSEEK_API_KEY",
     }
     if provider in env_keys:
