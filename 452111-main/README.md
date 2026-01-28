@@ -1,6 +1,6 @@
 # Game Theory LLM Multi-Agent Research
 
-博弈论 LLM 多智能体研究框架 v0.3.0 (v12)
+博弈论 LLM 多智能体研究框架 v0.4.0 (v13)
 
 研究大语言模型在经典博弈场景（囚徒困境、雪堆博弈、猎鹿博弈、和谐博弈）中的决策行为。
 
@@ -98,18 +98,18 @@ python research.py all --repeats 5
 
 ```
 results/{timestamp}/
-├── experiment_config.json    # 实验配置
+├── config.json               # 实验配置
 ├── summary.json              # 总结
-├── details/                  # 详细数据
-│   └── {experiment}_{provider}_{trial}.json
-├── summary/                  # CSV 汇总
-│   └── {experiment}.csv
-├── prisoners_dilemma/        # 按博弈类型分类
-│   ├── *.json
-│   └── *.png
-├── snowdrift/
-├── stag_hunt/
-└── harmony/
+├── raw/                      # 原始试验数据 (JSON)
+│   └── {exp}_{game}_{condition}_trial{N}.json
+├── rounds/                   # 轮次数据 (CSV)
+│   └── {exp}_{game}_{condition}_rounds.csv
+├── stats/                    # 统计汇总
+│   └── {exp}_summary.csv
+├── figures/                  # 图表
+│   └── {exp}_{game}_{condition}.png
+└── anomalies/                # 异常记录
+    └── {exp}_anomalies.csv
 ```
 
 ## 项目结构
@@ -145,6 +145,10 @@ results/{timestamp}/
 - **Ollama** - 本地模型
 
 ## 版本历史
+
+### v0.4.0 (v13)
+- 重构输出目录结构：raw/, rounds/, stats/, figures/, anomalies/
+- 新增统一保存接口
 
 ### v0.3.0 (v12)
 - 统一版本号管理
