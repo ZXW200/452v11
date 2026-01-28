@@ -963,6 +963,8 @@ class Exp3_MultiLLM(BaseExperiment):
         super().__init__(result_manager, **kwargs)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
         self.providers = [resolve_provider_name(p) for p in raw_providers]
+        if not self.providers:
+            raise ValueError("Exp3 requires at least one provider")
 
     def run(self) -> Dict:
         print_separator(f"实验3: {self.description}")
@@ -1093,6 +1095,8 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
         super().__init__(result_manager, **kwargs)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
         self.providers = [resolve_provider_name(p) for p in raw_providers]
+        if len(self.providers) < 2:
+            raise ValueError("Exp4 requires at least 2 providers for pairwise comparison")
 
     def run(self) -> Dict:
         print_separator(f"实验4: {self.description}")
@@ -1246,7 +1250,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                         detailed_trials[mode].append(trial_record)
 
                         total_social = sum(total_payoffs.values())
-                        avg_coop = sum(coop_rate_dict.values()) / len(coop_rate_dict)
+                        avg_coop = sum(coop_rate_dict.values()) / len(coop_rate_dict) if coop_rate_dict else 0.0
                         print(f"Social: {total_social:.1f}, Avg coop: {avg_coop:.1%}")
 
                     except Exception as e:
@@ -1958,6 +1962,8 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
         self.n_agents = kwargs.get("n_agents", 10)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
         self.providers = [resolve_provider_name(p) for p in raw_providers]
+        if not self.providers:
+            raise ValueError("Exp5b requires at least one provider")
         self.networks = kwargs.get("networks", ["fully_connected", "small_world"])
 
     def run(self) -> Dict:

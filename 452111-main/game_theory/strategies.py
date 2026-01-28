@@ -137,6 +137,10 @@ class GrimTrigger(Strategy):
         self.triggered = False
 
     def choose_action(self, history, opponent_name=None) -> Action:
+        # 自动重置：如果 history 为空但状态已触发，说明是新游戏
+        if not history and self.triggered:
+            self.reset()
+
         if self.triggered:
             return Action.DEFECT
 
@@ -205,6 +209,10 @@ class GradualStrategy(Strategy):
         self.calm_remaining = 0    # 剩余冷静轮数
 
     def choose_action(self, history, opponent_name=None) -> Action:
+        # 自动重置：如果 history 为空但有未完成的状态，说明是新游戏
+        if not history and (self.defect_count > 0 or self.punish_remaining > 0 or self.calm_remaining > 0):
+            self.reset()
+
         # 如果在惩罚阶段
         if self.punish_remaining > 0:
             self.punish_remaining -= 1
