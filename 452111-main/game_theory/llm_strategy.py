@@ -429,8 +429,14 @@ class LLMStrategy:
         self.current_round = len(my_history) + 1
         history_str = self._format_history(my_history, opponent_history)
 
-        my_coop_rate = "0%" if not my_history else f"{sum(1 for a in my_history if self._get_action_value(a) == 'cooperate') / len(my_history):.0%}"
-        opp_coop_rate = "N/A" if not opponent_history else f"{sum(1 for a in opponent_history if self._get_action_value(a) == 'cooperate') / len(opponent_history):.0%}"
+        # 应用历史窗口限制（与 hybrid 模式保持一致）
+        window = self.history_window if self.history_window else len(my_history)
+        windowed_my = my_history[-window:] if my_history else []
+        windowed_opp = opponent_history[-window:] if opponent_history else []
+        window_size = len(windowed_my)
+
+        my_coop_rate = "0%" if window_size == 0 else f"{sum(1 for a in windowed_my if self._get_action_value(a) == 'cooperate') / window_size:.0%}"
+        opp_coop_rate = "N/A" if window_size == 0 else f"{sum(1 for a in windowed_opp if self._get_action_value(a) == 'cooperate') / window_size:.0%}"
 
         template = _load_template("strategy_select")
         prompt = template.format(
@@ -473,7 +479,7 @@ class LLMStrategy:
             window_size = len(windowed_opp)
 
             opp_coop = sum(1 for a in windowed_opp if self._get_action_value(a) == "cooperate")
-            opp_coop_rate = opp_coop / window_size
+            opp_coop_rate = opp_coop / window_size if window_size > 0 else 0
             my_coop = sum(1 for a in windowed_my if self._get_action_value(a) == "cooperate")
             my_coop_rate = my_coop / window_size if window_size > 0 else 0
 
