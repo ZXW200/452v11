@@ -2574,6 +2574,7 @@ def main():
     n_agents = 10
     provider1 = None
     provider2 = None
+    providers = None  # for multi-provider experiments (exp6)
 
     i = 2
     while i < len(sys.argv):
@@ -2594,6 +2595,9 @@ def main():
             i += 2
         elif sys.argv[i] == "--n_agents" and i + 1 < len(sys.argv):
             n_agents = int(sys.argv[i + 1])
+            i += 2
+        elif sys.argv[i] == "--providers" and i + 1 < len(sys.argv):
+            providers = [p.strip() for p in sys.argv[i + 1].split(",")]
             i += 2
         elif sys.argv[i] == "--games" and i + 1 < len(sys.argv):
             game_arg = sys.argv[i + 1].lower()
@@ -2629,6 +2633,8 @@ def main():
         "provider1": provider1 if provider1 else provider,
         "provider2": provider2 if provider2 else provider,
     }
+    if providers:
+        common_kwargs["providers"] = providers
 
     # 保存实验配置（显示用 normalize 后的名称）
     # exp5b 固定 3 LLM + 8 Classic = 11 agents
