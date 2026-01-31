@@ -2268,10 +2268,13 @@ class Exp6_Baseline(BaseExperiment):
 
     BASELINES = {
         "TitForTat": TitForTat,
+        "TitForTwoTats": TitForTwoTats,
+        "GenerousTitForTat": GenerousTitForTat,
         "AlwaysCooperate": AlwaysCooperate,
         "AlwaysDefect": AlwaysDefect,
         "GrimTrigger": GrimTrigger,
         "Pavlov": Pavlov,
+        "Extort2": Extort2,
         "Random": RandomStrategy,
     }
 
