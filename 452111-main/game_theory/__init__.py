@@ -1,7 +1,5 @@
-"""
-Game theory multi-agent simulation package.
-LLMStrategy: from game_theory.llm_strategy import LLMStrategy
-"""
+# Game theory multi-agent simulation package / 博弈论多智能体仿真包
+# LLMStrategy: from game_theory.llm_strategy import LLMStrategy
 
 from .games import (
     Action,

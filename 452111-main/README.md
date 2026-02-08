@@ -1,20 +1,20 @@
 # Game Theory LLM Multi-Agent Research
 
-博弈论 LLM 多智能体研究框架 v0.6.0 (v17)
+Game Theory LLM Multi-Agent Research Framework v0.6.0 (v17)
 
-研究大语言模型在经典博弈场景（囚徒困境、雪堆博弈、猎鹿博弈）中的决策行为。
+Research on LLM decision-making behavior in classic game theory scenarios (Prisoner's Dilemma, Snowdrift Game, Stag Hunt).
 
-## 安装依赖
+## Installation
 
 ```bash
 pip install numpy matplotlib requests
-# 可选：高级网络拓扑功能
+# Optional: advanced network topology features
 pip install networkx
 ```
 
-## 配置 API
+## API Configuration
 
-通过环境变量设置 API Key：
+Set API keys via environment variables:
 
 ```bash
 export DEEPSEEK_API_KEY="your-key"
@@ -22,29 +22,29 @@ export OPENAI_API_KEY="your-key"
 export GEMINI_API_KEY="your-key"
 ```
 
-或使用配置向导：
+Or use the setup wizard:
 
 ```bash
 python game_theory/llm_api.py setup
 ```
 
-## 实验列表
+## Experiment List
 
-| 实验 | 命令 | 说明 |
+| Experiment | Command | Description |
 |------|------|------|
-| exp1 | `python research.py exp1` | Pure vs Hybrid - LLM自己分析 vs 代码辅助 |
-| exp2 | `python research.py exp2` | 记忆视窗对比 - 5/10/20/全部历史 |
-| exp3 | `python research.py exp3` | 多LLM对比 - DeepSeek vs GPT vs Gemini |
-| exp4 | `python research.py exp4` | Cheap Talk 三方对战 - 3个LLM Round-Robin 语言交流 |
-| exp4b | `python research.py exp4b` | Cheap Talk 一对一 - 指定双方LLM的语言交流博弈 |
-| exp5 | `python research.py exp5` | 群体动力学（3 LLM + 8 经典策略 = 11 agents） |
-| exp5b | `python research.py exp5b` | 群体动力学（3 LLM + 8 经典策略 = 11 agents） |
-| exp6 | `python research.py exp6` | Baseline 对比 - LLM vs 经典策略 |
-| all | `python research.py all` | 运行全部实验 |
+| exp1 | `python research.py exp1` | Pure vs Hybrid - LLM self-analysis vs code-assisted |
+| exp2 | `python research.py exp2` | Memory window comparison - 5/10/20/full history |
+| exp3 | `python research.py exp3` | Multi-LLM comparison - DeepSeek vs GPT vs Gemini |
+| exp4 | `python research.py exp4` | Cheap Talk three-way - 3 LLM Round-Robin with language communication |
+| exp4b | `python research.py exp4b` | Cheap Talk one-on-one - specify both LLMs for language communication game |
+| exp5 | `python research.py exp5` | Group dynamics (3 LLM + 8 classic strategies = 11 agents) |
+| exp5b | `python research.py exp5b` | Group dynamics (3 LLM + 8 classic strategies = 11 agents) |
+| exp6 | `python research.py exp6` | Baseline comparison - LLM vs classic strategies |
+| all | `python research.py all` | Run all experiments |
 
-### 旧命令兼容
+### Legacy Command Aliases
 
-| 旧命令 | 对应实验 |
+| Legacy Command | Corresponding Experiment |
 |--------|----------|
 | pure_hybrid | exp1 |
 | window | exp2 |
@@ -55,131 +55,131 @@ python game_theory/llm_api.py setup
 | group / group_multi | exp5b |
 | baseline | exp6 |
 
-## 命令行选项
+## Command Line Options
 
-| 选项 | 说明 | 默认值 |
+| Option | Description | Default |
 |------|------|--------|
-| `--provider` | LLM 提供商 (deepseek/openai/gemini) | deepseek |
-| `--provider1` | exp4b 的 Player1 模型 | 同 --provider |
-| `--provider2` | exp4b 的 Player2 模型 | 同 --provider |
-| `--repeats` | 重复次数 | 3 |
-| `--rounds` | 每次轮数 | 20 |
-| `--games` | 博弈类型 (pd/snowdrift/stag_hunt/all) | all |
-| `--n_agents` | 群体动力学智能体数量（exp5/exp5b 固定为 11） | 11 |
-| `-h, --help` | 显示帮助信息 | - |
+| `--provider` | LLM provider (deepseek/openai/gemini) | deepseek |
+| `--provider1` | Player1 model for exp4b | same as --provider |
+| `--provider2` | Player2 model for exp4b | same as --provider |
+| `--repeats` | Number of repeats | 3 |
+| `--rounds` | Rounds per repeat | 20 |
+| `--games` | Game type (pd/snowdrift/stag_hunt/all) | all |
+| `--n_agents` | Number of agents for group dynamics (fixed at 11 for exp5/exp5b) | 11 |
+| `-h, --help` | Show help information | - |
 
-## 使用示例
+## Examples
 
 ```bash
-# 显示帮助
+# Show help
 python research.py --help
 
-# 运行单个实验
+# Run a single experiment
 python research.py exp1
 python research.py exp6
 
-# 指定 LLM 提供商
+# Specify LLM provider
 python research.py exp1 --provider openai
 
-# Cheap Talk 跨模型对战
+# Cheap Talk cross-model match
 python research.py exp4b --provider1 openai --provider2 gemini
 
-# 群体动力学实验（15个智能体，30轮）
+# Group dynamics experiment (15 agents, 30 rounds)
 python research.py exp5b --n_agents 15 --rounds 30
 
-# 只跑囚徒困境
+# Run Prisoner's Dilemma only
 python research.py exp1 --games pd
 
-# 运行全部实验，重复5次
+# Run all experiments, repeat 5 times
 python research.py all --repeats 5
 ```
 
-## 输出结构
+## Output Structure
 
 ```
 results/{timestamp}/
-├── config.json               # 实验配置
-├── summary.json              # 总结
-├── raw/                      # 原始试验数据 (JSON)
+├── config.json               # Experiment configuration
+├── summary.json              # Summary
+├── raw/                      # Raw trial data (JSON)
 │   └── {exp}_{game}_{condition}_trial{N}.json
-├── rounds/                   # 轮次数据 (CSV)
+├── rounds/                   # Round data (CSV)
 │   └── {exp}_{game}_{condition}_rounds.csv
-├── stats/                    # 统计汇总
+├── stats/                    # Statistical summaries
 │   └── {exp}_summary.csv
-├── figures/                  # 图表
+├── figures/                  # Charts
 │   └── {exp}_{game}_{condition}.png
-└── anomalies/                # 异常记录
+└── anomalies/                # Anomaly records
     └── {exp}_anomalies.csv
 ```
 
-## 项目结构
+## Project Structure
 
 ```
 452111-main/
-├── research.py              # 主实验脚本
+├── research.py              # Main experiment script
 ├── game_theory/
-│   ├── games.py             # 博弈定义和收益矩阵
-│   ├── strategies.py        # 经典博弈策略 (TitForTat, Pavlov 等)
-│   ├── llm_strategy.py      # LLM 决策策略
-│   ├── llm_api.py           # 统一 LLM API 接口
-│   ├── simulation.py        # 群体动力学仿真引擎
-│   ├── network.py           # 网络拓扑 (完全连接、小世界等)
-│   └── prompts/             # Prompt 模板
+│   ├── games.py             # Game definitions and payoff matrices
+│   ├── strategies.py        # Classic game strategies (TitForTat, Pavlov, etc.)
+│   ├── llm_strategy.py      # LLM decision strategy
+│   ├── llm_api.py           # Unified LLM API interface
+│   ├── simulation.py        # Group dynamics simulation engine
+│   ├── network.py           # Network topology (fully connected, small-world, etc.)
+│   └── prompts/             # Prompt templates
 └── README.md
 ```
 
-## 支持的博弈类型
+## Supported Game Types
 
-| 博弈 | 命令参数 | 说明 |
+| Game | Command Arg | Description |
 |------|----------|------|
-| 囚徒困境 | pd | Prisoner's Dilemma |
-| 雪堆博弈 | snowdrift | Snowdrift Game |
-| 猎鹿博弈 | stag_hunt | Stag Hunt |
+| Prisoner's Dilemma | pd | Prisoner's Dilemma |
+| Snowdrift Game | snowdrift | Snowdrift Game |
+| Stag Hunt | stag_hunt | Stag Hunt |
 
-## 支持的 LLM
+## Supported LLMs
 
-- **DeepSeek** - 默认，性价比最高
+- **DeepSeek** - Default, best cost-performance
 - **OpenAI** - GPT-4o
 - **Gemini** - Gemini 2.0 Flash
-- **Ollama** - 本地模型
+- **Ollama** - Local model, free
 
-## 版本历史
+## Version History
 
 ### v0.6.0 (v17)
-- 移除和谐博弈 (Harmony Game)：合作占优策略无分析价值，聚焦三种博弈
-- 移除 moonshot 代理层：Gemini 直连原生 API (gemini-2.0-flash)
-- 统一 exp5 智能体配置：与 exp5b 一致，3 LLM + 8 经典策略 = 11 agents
-- 清理未使用代码：移除 plot_comparison_bar()、_trigger_reflection() 空桩、未用 imports
-- 补充中英文双语注释：所有模块添加英文注释
+- Remove Harmony Game: dominant cooperation strategy has no analytical value; focus on three game types
+- Remove moonshot proxy layer: Gemini connects directly to native API (gemini-2.0-flash)
+- Unify exp5 agent configuration: match exp5b with 3 LLM + 8 classic strategies = 11 agents
+- Clean up unused code: remove plot_comparison_bar(), _trigger_reflection() empty stub, unused imports
+- Add bilingual comments (Chinese/English): add English comments to all modules
 
 ### v0.5.2 (v16)
-- 重构 exp5b 智能体分配：固定 3 LLM（每 provider 1个）+ 8 经典策略 = 11 agents
-- 新增经典策略：GenerousTitForTat（宽容以牙还牙）、Extort2（零行列式勒索策略）
-- 更新 exp5b 经典策略列表：TitForTat, TitForTwoTats, GenerousTitForTat, Extort2, Pavlov, GrimTrigger, AlwaysDefect, RandomStrategy
-- 修复 exp5b 崩溃：移除未使用的 n_agents 参数后 self.n_agents 未定义
-- 更换 OpenAI base URL 为 hiapi.online 代理
+- Refactor exp5b agent allocation: fixed 3 LLM (1 per provider) + 8 classic strategies = 11 agents
+- Add new classic strategies: GenerousTitForTat (forgiving tit-for-tat), Extort2 (zero-determinant extortion strategy)
+- Update exp5b classic strategy list: TitForTat, TitForTwoTats, GenerousTitForTat, Extort2, Pavlov, GrimTrigger, AlwaysDefect, RandomStrategy
+- Fix exp5b crash: self.n_agents undefined after removing n_agents parameter
+- Switch OpenAI base URL to hiapi.online proxy
 
 ### v0.5.1 (v15)
-- 修复 Exp4 除零错误：`coop_rate_dict` 为空时的防护
-- 添加 providers 参数验证：Exp3/Exp4/Exp5b 防止空列表输入
-- 增强策略健壮性：GrimTrigger/GradualStrategy 添加自动状态重置
+- Fix Exp4 division-by-zero error: guard for empty `coop_rate_dict`
+- Add providers parameter validation: Exp3/Exp4/Exp5b prevent empty list input
+- Enhance strategy robustness: GrimTrigger/GradualStrategy add automatic state reset
 
 ### v0.5.0 (v14)
-- 修复 LLMStrategy 与 GameSimulation 参数格式不匹配
-- 修复 AnomalyRecorder 输出目录错误
-- 修复 pure/hybrid 模式历史窗口不一致
-- 添加除零保护
+- Fix LLMStrategy and GameSimulation parameter format mismatch
+- Fix AnomalyRecorder output directory error
+- Fix pure/hybrid mode history window inconsistency
+- Add division-by-zero protection
 
 ### v0.4.0 (v13)
-- 重构输出目录结构：raw/, rounds/, stats/, figures/, anomalies/
-- 新增统一保存接口
+- Refactor output directory structure: raw/, rounds/, stats/, figures/, anomalies/
+- Add unified save interface
 
 ### v0.3.0 (v12)
-- 统一版本号管理
-- 修复异常处理问题
-- 更新文档
+- Unify version number management
+- Fix exception handling issues
+- Update documentation
 
 ### v0.2.0 (v11)
-- 修复 exp5/exp5b 策略名泄露问题：改为 Agent_N 命名
-- 添加 strategy_map 用于分析时映射
-- 更新策略列表
+- Fix exp5/exp5b strategy name leakage: rename from strategy names to Agent_N naming
+- Add strategy_map for mapping during analysis
+- Update strategy list

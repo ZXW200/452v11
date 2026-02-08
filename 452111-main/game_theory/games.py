@@ -1,23 +1,20 @@
-"""
-Game definitions and payoff matrices.
-Supports: Prisoner's Dilemma, Snowdrift, Stag Hunt.
-"""
+# Game definitions and payoff matrices / 游戏定义和收益矩阵
+# Supports: Prisoner's Dilemma, Snowdrift, Stag Hunt / 支持：囚徒困境、雪堆博弈、猎鹿博弈
 from enum import Enum
 from dataclasses import dataclass
-from typing import Dict, Tuple
 
 
+# Game actions: cooperate or defect / 游戏动作：合作或背叛
 class Action(Enum):
-    """Game actions: cooperate or defect."""
     COOPERATE = "cooperate"
     DEFECT = "defect"
 
 
+# Game type config: name, payoff matrix, and description / 游戏类型配置：名称、收益矩阵和描述
 @dataclass
 class GameConfig:
-    """Game type config: name, payoff matrix, and description."""
     name: str
-    payoff_matrix: Dict[Tuple[Action, Action], Tuple[float, float]]
+    payoff_matrix: dict
     description: str
     description_cn: str
 
@@ -77,18 +74,18 @@ GAME_REGISTRY = {
 
 # --- Utility Functions ---
 
-def get_payoff(game: GameConfig, action1: Action, action2: Action) -> Tuple[float, float]:
-    """Return (payoff1, payoff2) for given actions."""
+# Return (payoff1, payoff2) for given actions / 返回给定动作的(收益1, 收益2)
+def get_payoff(game, action1, action2):
     return game.payoff_matrix[(action1, action2)]
 
 
-def get_payoff_description(game: GameConfig) -> str:
-    """Generate text description of payoff matrix for LLM prompts."""
+# Generate text description of payoff matrix for LLM prompts / 生成收益矩阵的文本描述用于LLM提示
+def get_payoff_description(game):
     cc = game.payoff_matrix[(Action.COOPERATE, Action.COOPERATE)]
     cd = game.payoff_matrix[(Action.COOPERATE, Action.DEFECT)]
     dc = game.payoff_matrix[(Action.DEFECT, Action.COOPERATE)]
     dd = game.payoff_matrix[(Action.DEFECT, Action.DEFECT)]
-    
+
     return f"""Payoff Matrix for {game.name}:
 - Both Cooperate: You get {cc[0]}, Opponent gets {cc[1]}
 - You Cooperate, Opponent Defects: You get {cd[0]}, Opponent gets {cd[1]}
@@ -96,8 +93,8 @@ def get_payoff_description(game: GameConfig) -> str:
 - Both Defect: You get {dd[0]}, Opponent gets {dd[1]}"""
 
 
-def action_from_string(s: str) -> Action:
-    """Parse action from string (cooperate/defect)."""
+# Parse action from string (cooperate/defect) / 从字符串解析动作（合作/背叛）
+def action_from_string(s):
     s = s.lower().strip()
     if s in ["cooperate", "c", "合作"]:
         return Action.COOPERATE
