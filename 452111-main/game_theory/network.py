@@ -1,12 +1,25 @@
 """
-交互网络模块 - 定义agents之间的交互结构
-Interaction Network Module - Define interaction structures between agents
+交互网络模块 - 定义agents之间的交互拓扑结构
+Interaction Network Module - Define interaction topology between agents
+
+支持的网络类型 / Supported network types:
+  - FullyConnected: 完全连接，所有agent两两交互
+  - Ring:           环形网络，每个agent与相邻两个交互
+  - Grid:           2D网格结构
+  - Star:           星形网络，一个中心节点
+  - SmallWorld:     小世界网络 (Watts-Strogatz)
+  - ScaleFree:      无标度网络 (Barabási-Albert)
+  - Random:         随机网络 (Erdős-Rényi)
+
+可选依赖: networkx (用于 SmallWorld 和 ScaleFree 的精确实现)
+Optional dependency: networkx (for accurate SmallWorld/ScaleFree)
 """
 import random
 from typing import List, Tuple, Dict, Optional
 from abc import ABC, abstractmethod
 
 # 尝试导入networkx，如果没有则使用简单实现
+# Try importing networkx; fall back to simple implementation if unavailable
 try:
     import networkx as nx
     HAS_NETWORKX = True
@@ -181,8 +194,9 @@ class SmallWorldNetwork(InteractionNetwork):
     """
     小世界网络 - 基于Watts-Strogatz模型
     Small World Network - Based on Watts-Strogatz model
-    
+
     特点：高聚类系数 + 短平均路径长度
+    Properties: High clustering coefficient + short average path length
     """
     name = "Small World"
     
@@ -237,9 +251,10 @@ class SmallWorldNetwork(InteractionNetwork):
 class ScaleFreeNetwork(InteractionNetwork):
     """
     无标度网络 - 基于Barabási-Albert模型
-    Scale-Free Network - Based on Barabási-Albert model
-    
+    Scale-Free Network - Based on Barabási-Albert preferential attachment model
+
     特点：度分布服从幂律，存在少数高度连接的hub节点
+    Properties: Power-law degree distribution with a few highly-connected hub nodes
     """
     name = "Scale Free"
     

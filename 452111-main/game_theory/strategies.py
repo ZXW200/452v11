@@ -1,8 +1,14 @@
 """
 策略库 - 定义各种博弈策略
-Strategy Library - Define various game strategies
+Strategy Library - Define various game theory strategies
+
+包含三类策略 / Contains three categories:
+  - 固定策略 / Fixed: AlwaysCooperate, AlwaysDefect, Random
+  - 条件策略 / Conditional: TitForTat, GrimTrigger, Pavlov, Extort2 等
+  - 概率策略 / Probabilistic: ProbabilisticCooperator
 
 注意: LLMStrategy 已移至独立模块 llm_strategy.py
+Note: LLMStrategy is in a separate module llm_strategy.py
 """
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional
@@ -41,7 +47,7 @@ class Strategy(ABC):
         pass
 
     def reset(self):
-        """重置策略状态（如果有的话）"""
+        """重置策略状态（如果有的话） / Reset strategy state if any"""
         pass
 
 
@@ -94,6 +100,7 @@ class TitForTat(Strategy):
     """
     以牙还牙 / Tit for Tat
     最著名的博弈策略之一，由Axelrod锦标赛中胜出
+    One of the most famous strategies, winner of Axelrod's tournament
     """
     name = "Tit for Tat"
     description = "Start with cooperation, then copy opponent's last move"
@@ -102,7 +109,7 @@ class TitForTat(Strategy):
     def choose_action(self, history, opponent_name=None) -> Action:
         if not history:
             return Action.COOPERATE
-        # 返回对手上一轮的动作
+        # 返回对手上一轮的动作 / Mirror opponent's last action
         return history[-1][1]
 
 
@@ -226,6 +233,7 @@ class Extort2(Strategy):
     勒索策略 / Extort-2 (Zero-Determinant Strategy)
     Press & Dyson (2012) 提出的零行列式策略
     确保自己的收益是对手超额收益的两倍
+    Ensures own surplus payoff is twice the opponent's surplus
     """
     name = "Extort-2"
     description = "Zero-determinant strategy that extorts opponent"
@@ -239,7 +247,9 @@ class Extort2(Strategy):
         my_last, opp_last = history[-1]
 
         # 根据上轮结果决定本轮合作概率
+        # Determine cooperation probability based on last round outcome
         # 经典 Extort-2 参数 (针对标准囚徒困境 T=5,R=3,P=1,S=0)
+        # Classic Extort-2 parameters (for standard PD: T=5,R=3,P=1,S=0)
         if my_last == Action.COOPERATE and opp_last == Action.COOPERATE:
             # CC: 合作概率 8/9
             p = 8/9

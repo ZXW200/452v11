@@ -1,8 +1,14 @@
 """
 LLM 博弈策略模块
-Game Theory LLM Strategy Module
+LLM-based Game Theory Strategy Module
 
-修复版 v2 - 解决格式霸权 + Token 截断问题
+通过调用 LLM API 来决定合作或背叛，支持两种模式：
+Calls LLM API to decide cooperate/defect, supports two modes:
+  - pure:   LLM 独立分析历史 / LLM analyzes history independently
+  - hybrid: 代码预处理统计后交给 LLM / Code pre-processes stats for LLM
+
+包含 ResponseParser 解析器，支持 20+ 种响应格式（中英文）
+Includes ResponseParser with 20+ response format patterns (EN/CN)
 """
 
 import re
@@ -14,7 +20,7 @@ from dataclasses import dataclass, field
 
 
 # ============================================================
-# 模板加载
+# 模板加载 / Template Loading
 # ============================================================
 
 _TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "prompts")
@@ -22,7 +28,7 @@ _TEMPLATE_CACHE: Dict[str, str] = {}
 
 
 def _load_template(name: str) -> str:
-    """加载提示模板"""
+    """加载提示模板 / Load prompt template from prompts/ directory"""
     if name not in _TEMPLATE_CACHE:
         path = os.path.join(_TEMPLATE_DIR, f"{name}.txt")
         with open(path, "r", encoding="utf-8") as f:
@@ -31,7 +37,7 @@ def _load_template(name: str) -> str:
 
 
 # ============================================================
-# 解析状态枚举
+# 解析状态枚举 / Parse Status Enum
 # ============================================================
 
 class ParseStatus(Enum):
@@ -43,7 +49,7 @@ class ParseStatus(Enum):
 
 
 # ============================================================
-# 解析结果数据类
+# 解析结果数据类 / Parse Result Dataclass
 # ============================================================
 
 @dataclass
@@ -61,7 +67,7 @@ class ParseResult:
 
 
 # ============================================================
-# 响应解析器
+# 响应解析器 / Response Parser
 # ============================================================
 
 class ResponseParser:
@@ -266,7 +272,7 @@ class ResponseParser:
 
 
 # ============================================================
-# LLM 策略主类
+# LLM 策略主类 / LLM Strategy Main Class
 # ============================================================
 
 class LLMStrategy:
@@ -641,7 +647,7 @@ MESSAGE:"""
 
 
 # ============================================================
-# 测试代码
+# 测试代码 / Test Code
 # ============================================================
 
 if __name__ == "__main__":

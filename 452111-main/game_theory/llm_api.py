@@ -2,7 +2,17 @@
 统一 LLM API 调用接口
 Unified LLM API Interface
 
-支持: OpenAI / Gemini / DeepSeek / 本地Ollama
+支持的提供商 / Supported providers:
+  - DeepSeek  (api.deepseek.com, OpenAI-compatible)
+  - OpenAI    (hiapi.online proxy, OpenAI-compatible)
+  - Gemini    (generativelanguage.googleapis.com, native API)
+  - Ollama    (localhost, for local models)
+
+特性 / Features:
+  - 全局 requests.Session 连接池复用 TCP 连接
+  - Global requests.Session with connection pooling for TCP reuse
+  - 支持环境变量和配置文件两种方式设置 API Key
+  - API keys via environment variables or config file (llm_config.json)
 """
 
 import os
@@ -12,7 +22,8 @@ from typing import Optional, Dict, List
 import requests
 
 # 全局共享的 Session 实例，用于跨线程复用 TCP 连接
-# requests.Session 是线程安全的，可以在多线程中共享使用
+# Global shared Session for TCP connection reuse across threads
+# requests.Session is thread-safe and can be shared in multi-threaded usage
 _shared_session: requests.Session = None
 
 
@@ -38,7 +49,7 @@ def get_shared_session() -> requests.Session:
         _shared_session.mount('https://', adapter)
     return _shared_session
 
-# 配置文件路径
+# 配置文件路径 / Config file path (auto-created with defaults)
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), "llm_config.json")
 
 DEFAULT_CONFIG = {
@@ -64,7 +75,7 @@ DEFAULT_CONFIG = {
 
 
 def load_config() -> Dict:
-    """加载配置"""
+    """加载配置 / Load config from file, create default if missing"""
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -73,13 +84,13 @@ def load_config() -> Dict:
 
 
 def save_config(config: Dict):
-    """保存配置"""
+    """保存配置到文件 / Save config to JSON file"""
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
 
 def get_api_key(provider: str) -> str:
-    """获取 API Key（优先环境变量）"""
+    """获取 API Key（优先环境变量） / Get API key (env var takes priority over config file)"""
     env_keys = {
         "openai": "OPENAI_API_KEY",
         "gemini": "GEMINI_API_KEY",
@@ -133,7 +144,7 @@ class LLMClient:
             return self._call_openai_compatible(messages, temperature, max_tokens)
     
     def _call_openai_compatible(self, messages: List[Dict], temperature: float, max_tokens: int) -> str:
-        """调用 OpenAI 兼容 API (OpenAI/DeepSeek/中转站)"""
+        """调用 OpenAI 兼容 API (OpenAI/DeepSeek) / Call OpenAI-compatible API"""
         provider_config = self.config.get(self.provider, {})
         api_key = get_api_key(self.provider)
         base_url = provider_config.get("base_url", "https://api.openai.com/v1")
@@ -159,11 +170,12 @@ class LLMClient:
             return f"[API Error: {e}]"
     
     def _call_gemini(self, messages: List[Dict], temperature: float, max_tokens: int) -> str:
-        """调用 Gemini API"""
+        """调用 Gemini 原生 API / Call Gemini native REST API"""
         api_key = get_api_key("gemini")
         model = self.config.get("gemini", {}).get("model", "gemini-1.5-flash")
 
-        # 转换消息格式为 Gemini 格式
+        # 转换 OpenAI 消息格式为 Gemini 格式
+        # Convert OpenAI message format to Gemini's content format
         contents = []
         system_instruction = None
         for msg in messages:
@@ -194,7 +206,7 @@ class LLMClient:
             return f"[Gemini Error: {e}]"
     
     def _call_ollama(self, messages: List[Dict], temperature: float, max_tokens: int) -> str:
-        """调用本地 Ollama"""
+        """调用本地 Ollama / Call local Ollama instance"""
         ollama_config = self.config.get("ollama", {})
         base_url = ollama_config.get("base_url", "http://localhost:11434")
         model = ollama_config.get("model", "llama3")
@@ -214,7 +226,7 @@ class LLMClient:
             return f"[Ollama Error: {e}]"
     
     def test_connection(self) -> bool:
-        """测试连接"""
+        """测试连接是否正常 / Test if API connection works"""
         try:
             response = self.chat("Say OK", max_tokens=10)
             return not response.startswith("[") and len(response) > 0
@@ -223,13 +235,13 @@ class LLMClient:
 
 
 def chat(prompt: str, provider: str = None, **kwargs) -> str:
-    """快速聊天接口"""
+    """快速聊天接口 / Quick chat shortcut (creates a one-off client)"""
     client = LLMClient(provider=provider)
     return client.chat(prompt, **kwargs)
 
 
 def setup_wizard():
-    """配置向导"""
+    """交互式配置向导 / Interactive setup wizard for API keys"""
     print("\n" + "="*50)
     print("🔧 LLM API 配置向导")
     print("="*50)

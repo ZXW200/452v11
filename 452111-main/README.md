@@ -1,6 +1,6 @@
 # Game Theory LLM Multi-Agent Research
 
-博弈论 LLM 多智能体研究框架 v0.5.2 (v16)
+博弈论 LLM 多智能体研究框架 v0.6.0 (v17)
 
 研究大语言模型在经典博弈场景（囚徒困境、雪堆博弈、猎鹿博弈）中的决策行为。
 
@@ -37,8 +37,8 @@ python game_theory/llm_api.py setup
 | exp3 | `python research.py exp3` | 多LLM对比 - DeepSeek vs GPT vs Gemini |
 | exp4 | `python research.py exp4` | Cheap Talk 三方对战 - 3个LLM Round-Robin 语言交流 |
 | exp4b | `python research.py exp4b` | Cheap Talk 一对一 - 指定双方LLM的语言交流博弈 |
-| exp5 | `python research.py exp5` | 群体动力学（单Provider） |
-| exp5b | `python research.py exp5b` | 群体动力学（多Provider混合，3 LLM + 8 经典策略） |
+| exp5 | `python research.py exp5` | 群体动力学（3 LLM + 8 经典策略 = 11 agents） |
+| exp5b | `python research.py exp5b` | 群体动力学（3 LLM + 8 经典策略 = 11 agents） |
 | exp6 | `python research.py exp6` | Baseline 对比 - LLM vs 经典策略 |
 | all | `python research.py all` | 运行全部实验 |
 
@@ -65,7 +65,7 @@ python game_theory/llm_api.py setup
 | `--repeats` | 重复次数 | 3 |
 | `--rounds` | 每次轮数 | 20 |
 | `--games` | 博弈类型 (pd/snowdrift/stag_hunt/all) | all |
-| `--n_agents` | 群体动力学智能体数量（exp5b 固定为 11） | 10 |
+| `--n_agents` | 群体动力学智能体数量（exp5/exp5b 固定为 11） | 11 |
 | `-h, --help` | 显示帮助信息 | - |
 
 ## 使用示例
@@ -140,10 +140,17 @@ results/{timestamp}/
 
 - **DeepSeek** - 默认，性价比最高
 - **OpenAI** - GPT-4o
-- **Gemini** - Gemini 3 Flash
+- **Gemini** - Gemini 2.0 Flash
 - **Ollama** - 本地模型
 
 ## 版本历史
+
+### v0.6.0 (v17)
+- 移除和谐博弈 (Harmony Game)：合作占优策略无分析价值，聚焦三种博弈
+- 移除 moonshot 代理层：Gemini 直连原生 API (gemini-2.0-flash)
+- 统一 exp5 智能体配置：与 exp5b 一致，3 LLM + 8 经典策略 = 11 agents
+- 清理未使用代码：移除 plot_comparison_bar()、_trigger_reflection() 空桩、未用 imports
+- 补充中英文双语注释：所有模块添加英文注释
 
 ### v0.5.2 (v16)
 - 重构 exp5b 智能体分配：固定 3 LLM（每 provider 1个）+ 8 经典策略 = 11 agents

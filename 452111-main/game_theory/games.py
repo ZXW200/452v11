@@ -1,6 +1,11 @@
 """
 博弈定义模块 - 定义各种博弈类型和Payoff矩阵
-Game Theory Module - Define game types and payoff matrices
+Game Definition Module - Define game types and payoff matrices
+
+支持的博弈类型 / Supported game types:
+  - 囚徒困境 / Prisoner's Dilemma (PD)
+  - 雪堆博弈 / Snowdrift (Hawk-Dove)
+  - 猎鹿博弈 / Stag Hunt
 """
 from enum import Enum
 from dataclasses import dataclass
@@ -27,7 +32,7 @@ class GameConfig:
     name: str
     payoff_matrix: Dict[Tuple[Action, Action], Tuple[float, float]]
     description: str
-    description_cn: str  # 中文描述
+    description_cn: str  # 中文描述 / Chinese description
 
 
 # ============================================================
@@ -51,7 +56,8 @@ PRISONERS_DILEMMA = GameConfig(
 )
 
 # 雪堆博弈 / 鹰鸽博弈 Snowdrift / Hawk-Dove Game
-# T > R > S > P
+# T > R > S > P  (与PD不同：双方背叛是最差结果)
+# Unlike PD: mutual defection is the worst outcome
 SNOWDRIFT = GameConfig(
     name="Snowdrift Game",
     payoff_matrix={
@@ -66,7 +72,8 @@ SNOWDRIFT = GameConfig(
 )
 
 # 猎鹿博弈 Stag Hunt
-# R > T > P > S
+# R > T > P > S  (合作收益最高但需要信任)
+# Cooperation yields highest reward but requires mutual trust
 STAG_HUNT = GameConfig(
     name="Stag Hunt",
     payoff_matrix={
@@ -85,6 +92,8 @@ STAG_HUNT = GameConfig(
 # 博弈注册表 / Game Registry
 # ============================================================
 
+# 博弈注册表：通过字符串键名查找博弈配置
+# Game registry: lookup game config by string key
 GAME_REGISTRY = {
     "prisoners_dilemma": PRISONERS_DILEMMA,
     "snowdrift": SNOWDRIFT,

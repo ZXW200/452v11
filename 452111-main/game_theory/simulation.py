@@ -1,6 +1,14 @@
 """
-博弈仿真引擎 - 管理整个仿真流程
-Game Simulation Engine - Manage the entire simulation process
+博弈仿真引擎 - 管理多智能体博弈仿真流程
+Game Simulation Engine - Manage multi-agent game simulation
+
+核心类 / Core classes:
+  - AgentState:      智能体状态，记录历史和收益 / Agent state with history and payoff
+  - GameSimulation:  仿真主类，支持并行 API 调用 / Main simulation with parallel API calls
+
+使用 ThreadPoolExecutor 并行化 LLM API 调用，将 N 个 Agent 的决策
+从串行 (N * latency) 缩短到并行 (1 * latency)
+Uses ThreadPoolExecutor to parallelize LLM API calls
 """
 import json
 import os
@@ -10,8 +18,9 @@ from typing import List, Dict, Callable, Optional, Tuple
 from dataclasses import dataclass, field
 
 # 针对 I/O 密集型 API 请求优化的线程池大小
-# Python 默认是 min(32, CPU+4)，但 API 请求是"纯等待"任务，可以开更大
-# 100 个线程足以支持大规模并行 API 调用
+# Optimized thread pool size for I/O-bound API requests
+# Python default is min(32, CPU+4), but API calls are pure I/O waits
+# 100 threads are sufficient for large-scale parallel API calls
 MAX_API_WORKERS = 100
 
 from .games import GameConfig, Action, get_payoff, PRISONERS_DILEMMA
@@ -147,9 +156,12 @@ class GameSimulation:
     def _run_single_round(self) -> Dict:
         """
         执行单轮博弈（并行化版本）
+        Run a single round of the game (parallelized)
 
         优化：使用 ThreadPoolExecutor 并行执行所有 Agent 的 choose_action 调用，
         将每轮耗时从 N * API延迟 缩短到 1 * API延迟
+        Optimization: ThreadPoolExecutor parallelizes all choose_action calls,
+        reducing per-round time from N * API_latency to 1 * API_latency
         """
         round_data = {
             "round": self.current_round,
@@ -224,7 +236,7 @@ class GameSimulation:
     
     
     def _compile_results(self) -> Dict:
-        """汇总仿真结果"""
+        """汇总仿真结果 / Compile final simulation results"""
         final_payoffs = {
             name: agent.total_payoff 
             for name, agent in self.agents.items()

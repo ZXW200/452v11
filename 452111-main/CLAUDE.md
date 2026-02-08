@@ -8,7 +8,7 @@
 
 ```
 452111-main/
-├── research.py          # 主实验脚本 (v16)，包含所有实验类
+├── research.py          # 主实验脚本 (v17)，包含所有实验类
 ├── game_theory/         # 博弈论核心模块
 │   ├── games.py         # 博弈定义（囚徒困境、雪堆、猎鹿）
 │   ├── llm_api.py       # LLM API 封装（DeepSeek/OpenAI/Gemini）
@@ -30,8 +30,8 @@ python research.py exp2                    # 记忆视窗
 python research.py exp3                    # 多 LLM 对比
 python research.py exp4                    # Cheap Talk 三方对战
 python research.py exp4b                   # Cheap Talk 一对一
-python research.py exp5                    # 群体动力学（单 Provider）
-python research.py exp5b                   # 群体动力学（多 Provider）
+python research.py exp5                    # 群体动力学（3 LLM + 8 经典策略）
+python research.py exp5b                   # 群体动力学（3 LLM + 8 经典策略）
 python research.py exp6                    # Baseline 对比
 
 # 全部实验
@@ -55,7 +55,7 @@ python research.py all
 | exp3 | Exp3_MultiLLM | DeepSeek vs OpenAI vs Gemini 对比 |
 | exp4 | Exp4_CheapTalk3LLM | 3 个 LLM Round-Robin 语言交流博弈 |
 | exp4b | Exp4b_CheapTalk1v1 | 指定双方 LLM 的一对一语言交流博弈 |
-| exp5 | Exp5_GroupDynamics | 单 Provider 群体动力学 |
+| exp5 | Exp5_GroupDynamics | 群体动力学（3 LLM + 8 经典策略 = 11 agents） |
 | exp5b | Exp5b_GroupDynamicsMulti | 多 Provider 群体动力学 |
 | exp6 | Exp6_Baseline | LLM vs 经典策略（TitForTat、AlwaysCooperate 等） |
 
@@ -147,6 +147,24 @@ class ResultManager:
 6. **更新日志**（在下方记录，包含本次修改内容）
 
 ## 更新日志
+
+### v0.6.0 (v17)
+- **移除和谐博弈 (Harmony Game)**
+  - 合作占优策略无分析价值（100% 合作率，零方差）
+  - 聚焦三种博弈：囚徒困境、雪堆博弈、猎鹿博弈
+- **移除 moonshot 代理层**
+  - Gemini 直连原生 API (generativelanguage.googleapis.com)
+  - 默认模型改为 gemini-2.0-flash
+  - 移除 normalize_provider_name / resolve_provider_name 映射函数
+- **统一 exp5 智能体配置**
+  - 从单 Provider 动态分配改为与 exp5b 一致的固定 11 agents
+  - 3 LLM (deepseek/openai/gemini) + 8 经典策略
+- **代码清理**
+  - 移除未使用函数 plot_comparison_bar()
+  - 移除 simulation.py 中的 _trigger_reflection() 空桩和 reflection_interval 参数
+  - 移除未使用 imports: SuspiciousTitForTat, GradualStrategy, FullyConnectedNetwork, SmallWorldNetwork
+- **补充中英文双语注释**
+  - 所有模块文件添加英文注释
 
 ### v0.5.2 (v16)
 - **重构 exp5b 智能体分配**
