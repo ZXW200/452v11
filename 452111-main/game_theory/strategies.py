@@ -1,89 +1,84 @@
-"""
-Classical game theory strategies.
-LLMStrategy is in llm_strategy.py.
-"""
+# Classical game theory strategies / 经典博弈论策略
+# LLMStrategy is in llm_strategy.py / LLMStrategy 在 llm_strategy.py 中
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Optional
 import random
 
 from .games import Action
 
 
+# Base class. Subclasses must implement choose_action / 基类，子类必须实现 choose_action
 class Strategy(ABC):
-    """Base class. Subclasses must implement choose_action."""
     name: str = "Base Strategy"
     description: str = "Base strategy class"
     description_cn: str = "策略基类"
 
+    # Choose action based on history [(my_action, opp_action), ...] / 基于历史记录选择动作
     @abstractmethod
-    def choose_action(self,
-                      history: List[Tuple[Action, Action]],
-                      opponent_name: str = None) -> Action:
-        """Choose action based on history [(my_action, opp_action), ...]."""
+    def choose_action(self, history, opponent_name=None):
         pass
 
+    # Reset strategy state / 重置策略状态
     def reset(self):
-        """Reset strategy state."""
         pass
 
 
 # --- Fixed Strategies ---
 
+# Always cooperate / 始终合作
 class AlwaysCooperate(Strategy):
-    """Always cooperate."""
     name = "Always Cooperate"
     description = "Always choose to cooperate regardless of opponent's actions"
     description_cn = "无论对手如何，始终选择合作"
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         return Action.COOPERATE
 
 
+# Always defect / 始终背叛
 class AlwaysDefect(Strategy):
-    """Always defect."""
     name = "Always Defect"
     description = "Always choose to defect regardless of opponent's actions"
     description_cn = "无论对手如何，始终选择背叛"
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         return Action.DEFECT
 
 
+# Random cooperate or defect / 随机合作或背叛
 class RandomStrategy(Strategy):
-    """Random cooperate or defect."""
     name = "Random"
     description = "Randomly choose cooperate or defect with equal probability"
     description_cn = "以相等概率随机选择合作或背叛"
 
-    def __init__(self, coop_prob: float = 0.5):
+    def __init__(self, coop_prob=0.5):
         self.coop_prob = coop_prob
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         return Action.COOPERATE if random.random() < self.coop_prob else Action.DEFECT
 
 
 # --- Conditional Strategies ---
 
+# Copy opponent's last action. Start with cooperate / 模仿对手上一轮动作，第一轮合作
 class TitForTat(Strategy):
-    """Copy opponent's last action. Start with cooperate."""
     name = "Tit for Tat"
     description = "Start with cooperation, then copy opponent's last move"
     description_cn = "第一轮合作，之后模仿对手上一轮的动作"
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         if not history:
             return Action.COOPERATE
         # Mirror opponent's last action
         return history[-1][1]
 
 
+# Defect only after opponent defects twice in a row / 对手连续两轮背叛才报复
 class TitForTwoTats(Strategy):
-    """Defect only after opponent defects twice in a row."""
     name = "Tit for Two Tats"
     description = "Defect only if opponent defected in last TWO rounds"
     description_cn = "只有对手连续两轮背叛才报复"
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         if len(history) < 2:
             return Action.COOPERATE
         # Check if opponent defected in last 2 rounds
@@ -92,16 +87,17 @@ class TitForTwoTats(Strategy):
         return Action.COOPERATE
 
 
+# Cooperate until opponent defects once, then always defect / 开始合作，一旦对手背叛就永远背叛
 class GrimTrigger(Strategy):
-    """Cooperate until opponent defects once, then always defect."""
     name = "Grim Trigger"
     description = "Cooperate until opponent defects once, then always defect"
     description_cn = "开始合作，一旦对手背叛就永远背叛"
 
+    # Initialize grim trigger state / 初始化冷酷触发状态
     def __init__(self):
         self.triggered = False
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         # Auto-reset for new game
         if not history and self.triggered:
             self.reset()
@@ -117,17 +113,18 @@ class GrimTrigger(Strategy):
 
         return Action.COOPERATE
 
+    # Reset triggered state / 重置触发状态
     def reset(self):
         self.triggered = False
 
 
+# Win-Stay, Lose-Shift. Repeat if same actions, switch otherwise / 赢则保持，输则改变
 class Pavlov(Strategy):
-    """Win-Stay, Lose-Shift. Repeat if same actions, switch otherwise."""
     name = "Pavlov"
     description = "Repeat last action if it gave good payoff, otherwise switch"
     description_cn = "如果上一轮结果好就重复，否则改变选择"
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         if not history:
             return Action.COOPERATE
 
@@ -140,28 +137,28 @@ class Pavlov(Strategy):
             return Action.COOPERATE if my_last == Action.DEFECT else Action.DEFECT
 
 
+# Like TFT but starts with defect / 类似以牙还牙但第一轮背叛
 class SuspiciousTitForTat(Strategy):
-    """Like TFT but starts with defect."""
     name = "Suspicious Tit for Tat"
     description = "Start with defection, then copy opponent's last move"
     description_cn = "第一轮背叛，之后模仿对手上一轮的动作"
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         if not history:
             return Action.DEFECT
         return history[-1][1]
 
 
+# Like TFT but sometimes forgives defection / 类似以牙还牙，但有概率原谅背叛
 class GenerousTitForTat(Strategy):
-    """Like TFT but sometimes forgives defection."""
     name = "Generous Tit for Tat"
     description = "Like TFT, but forgive defection with some probability"
     description_cn = "类似以牙还牙，但有一定概率原谅背叛"
 
-    def __init__(self, forgiveness: float = 0.1):
+    def __init__(self, forgiveness=0.1):
         self.forgiveness = forgiveness
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         if not history:
             return Action.COOPERATE
         # Forgive defection with some probability
@@ -172,13 +169,13 @@ class GenerousTitForTat(Strategy):
         return Action.COOPERATE
 
 
+# Zero-determinant Extort-2 strategy (Press & Dyson 2012) / 零行列式勒索策略
 class Extort2(Strategy):
-    """Zero-determinant Extort-2 strategy (Press & Dyson 2012)."""
     name = "Extort-2"
     description = "Zero-determinant strategy that extorts opponent"
     description_cn = "零行列式勒索策略，确保收益优势"
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         if not history:
             return Action.COOPERATE
 
@@ -197,18 +194,19 @@ class Extort2(Strategy):
         return Action.COOPERATE if random.random() < p else Action.DEFECT
 
 
+# Punish N times for Nth defection, then cooperate twice to reconcile / 对第N次背叛惩罚N次，然后合作两次和解
 class GradualStrategy(Strategy):
-    """Punish N times for Nth defection, then cooperate twice to reconcile."""
     name = "Gradual"
     description = "Punish defection with increasing retaliation, then reconcile"
     description_cn = "对背叛进行递增报复，然后和解"
 
+    # Initialize gradual strategy counters / 初始化渐进策略计数器
     def __init__(self):
         self.defect_count = 0
         self.punish_remaining = 0
         self.calm_remaining = 0
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         # Auto-reset for new game
         if not history and (self.defect_count > 0 or self.punish_remaining > 0 or self.calm_remaining > 0):
             self.reset()
@@ -223,12 +221,13 @@ class GradualStrategy(Strategy):
 
         if history and history[-1][1] == Action.DEFECT:
             self.defect_count += 1
-            self.punish_remaining = self.defect_count - 1  # 本轮也算一次
+            self.punish_remaining = self.defect_count - 1  # This round counts as one / 本轮也算一次
             self.calm_remaining = 2
             return Action.DEFECT
 
         return Action.COOPERATE
 
+    # Reset all counters / 重置所有计数器
     def reset(self):
         self.defect_count = 0
         self.punish_remaining = 0
@@ -237,16 +236,16 @@ class GradualStrategy(Strategy):
 
 # --- Probability-based Strategies ---
 
+# Match opponent's cooperation rate probabilistically / 概率性地匹配对手的合作率
 class ProbabilisticCooperator(Strategy):
-    """Match opponent's cooperation rate probabilistically."""
     name = "Probabilistic Cooperator"
     description = "Match opponent's cooperation rate probabilistically"
     description_cn = "概率性地匹配对手的合作率"
 
-    def __init__(self, base_coop: float = 0.5):
+    def __init__(self, base_coop=0.5):
         self.base_coop = base_coop
 
-    def choose_action(self, history, opponent_name=None) -> Action:
+    def choose_action(self, history, opponent_name=None):
         if not history:
             return Action.COOPERATE if random.random() < self.base_coop else Action.DEFECT
 
@@ -275,8 +274,8 @@ STRATEGY_REGISTRY = {
 }
 
 
-def create_strategy(strategy_name: str, **kwargs) -> Strategy:
-    """Create a strategy instance by name."""
+# Create a strategy instance by name / 根据名称创建策略实例
+def create_strategy(strategy_name, **kwargs):
     if strategy_name not in STRATEGY_REGISTRY:
         raise ValueError(f"Unknown strategy: {strategy_name}. "
                         f"Available: {list(STRATEGY_REGISTRY.keys())}")
