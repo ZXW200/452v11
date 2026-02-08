@@ -104,17 +104,15 @@ class GameSimulation:
         self.current_round = 0
         self.round_results: List[Dict] = []
         
-    def run(self, 
-            round_callback: Callable = None,
-            reflection_interval: int = 10) -> Dict:
+    def run(self,
+            round_callback: Callable = None) -> Dict:
         """
         运行完整仿真
         Run complete simulation
-        
+
         Args:
             round_callback: 每轮结束后的回调函数 callback(round_num, round_data)
-            reflection_interval: 反思间隔（每N轮触发一次）
-        
+
         Returns:
             仿真结果
         """
@@ -135,11 +133,7 @@ class GameSimulation:
             
             if round_callback:
                 round_callback(round_num, round_data)
-            
-            # 定期反思（策略调整）
-            if round_num % reflection_interval == 0:
-                self._trigger_reflection()
-            
+
             if self.verbose and round_num % 10 == 0:
                 self._print_progress(round_num)
         
@@ -228,12 +222,6 @@ class GameSimulation:
 
         return round_data
     
-    def _trigger_reflection(self):
-        """
-        触发策略反思
-        TODO: Week 2-3 实现基于LLM的策略调整
-        """
-        pass
     
     def _compile_results(self) -> Dict:
         """汇总仿真结果"""

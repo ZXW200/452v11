@@ -42,12 +42,10 @@ from game_theory.llm_strategy import LLMStrategy
 from game_theory.strategies import (
     AlwaysCooperate,
     TitForTat, TitForTwoTats, AlwaysDefect,
-    GrimTrigger, Pavlov, RandomStrategy, SuspiciousTitForTat,
-    GenerousTitForTat, Extort2, GradualStrategy
+    GrimTrigger, Pavlov, RandomStrategy,
+    GenerousTitForTat, Extort2,
 )
-from game_theory.network import (
-    FullyConnectedNetwork, SmallWorldNetwork, NETWORK_REGISTRY
-)
+from game_theory.network import NETWORK_REGISTRY
 from game_theory.simulation import AgentState, GameSimulation
 
 
@@ -546,37 +544,6 @@ def print_game_header(game_name: str):
 # ============================================================
 # 可视化工具
 # ============================================================
-
-def plot_comparison_bar(
-    data: Dict[str, Dict],
-    title: str,
-    ylabel: str = "Payoff",
-    game_name: str = "",
-) -> plt.Figure:
-    """绘制对比柱状图"""
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    labels = list(data.keys())
-    means = [d["payoff"]["mean"] for d in data.values()]
-    stds = [d["payoff"]["std"] for d in data.values()]
-
-    x = np.arange(len(labels))
-    bars = ax.bar(x, means, yerr=stds, capsize=5, color='steelblue', alpha=0.8)
-
-    ax.set_ylabel(ylabel)
-    ax.set_title(f"{title} - {GAME_NAMES_EN.get(game_name, game_name)}")
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha='right')
-
-    # 添加数值标签
-    for bar, mean, std in zip(bars, means, stds):
-        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + std + 1,
-                f'{mean:.1f}', ha='center', va='bottom', fontsize=9)
-
-    plt.tight_layout()
-    return fig
-
 
 def plot_cooperation_comparison(
     data: Dict[str, Dict],
