@@ -1,11 +1,8 @@
-"""
-Game simulation engine. Runs multi-agent games with parallel LLM API calls.
-"""
+# Game simulation engine. Runs multi-agent games with parallel LLM API calls / 博弈仿真引擎，运行带有并行LLM API调用的多智能体博弈
 import json
 import os
 import concurrent.futures
 from datetime import datetime
-from typing import List, Dict, Callable, Optional, Tuple
 from dataclasses import dataclass, field
 
 # Thread pool size for parallel API calls
@@ -16,20 +13,20 @@ from .network import InteractionNetwork, FullyConnectedNetwork
 from .strategies import Strategy, create_strategy
 
 
+# Agent state: tracks strategy, history, and payoff / 智能体状态：跟踪策略、历史和收益
 @dataclass
 class AgentState:
-    """Agent state: tracks strategy, history, and payoff."""
     name: str
     strategy: Strategy
     description: str = ""
     personality: str = ""
-    
-    game_history: List[Dict] = field(default_factory=list)
+
+    game_history: list = field(default_factory=list)
     total_payoff: float = 0.0
-    opponent_models: Dict[str, str] = field(default_factory=dict)
-    
-    def record_game(self, opponent: str, my_action: Action, opp_action: Action, payoff: float):
-        """Record one game round."""
+    opponent_models: dict = field(default_factory=dict)
+
+    # Record one game round / 记录一轮博弈
+    def record_game(self, opponent, my_action, opp_action, payoff):
         self.game_history.append({
             "round": len(self.game_history) + 1,
             "opponent": opponent,
@@ -38,9 +35,9 @@ class AgentState:
             "payoff": payoff,
         })
         self.total_payoff += payoff
-    
-    def get_history_with(self, opponent: str) -> List[Tuple[Action, Action]]:
-        """Get history of games with a specific opponent."""
+
+    # Get history of games with a specific opponent / 获取与特定对手的博弈历史
+    def get_history_with(self, opponent):
         history = []
         for g in self.game_history:
             if g["opponent"] == opponent:
@@ -48,16 +45,16 @@ class AgentState:
                 opp_act = Action(g["opp_action"])
                 history.append((my_act, opp_act))
         return history
-    
-    def get_cooperation_rate(self) -> float:
-        """Calculate cooperation rate across all games."""
+
+    # Calculate cooperation rate across all games / 计算所有博弈的合作率
+    def get_cooperation_rate(self):
         if not self.game_history:
             return 0.0
         coop_count = sum(1 for g in self.game_history if g["my_action"] == "cooperate")
         return coop_count / len(self.game_history)
-    
-    def to_dict(self) -> Dict:
-        """Export as dictionary."""
+
+    # Export as dictionary / 导出为字典
+    def to_dict(self):
         return {
             "name": self.name,
             "strategy": self.strategy.name,
@@ -68,27 +65,27 @@ class AgentState:
         }
 
 
+# Main game simulation. Runs agents through rounds of a game / 主博弈仿真，运行智能体进行多轮博弈
 class GameSimulation:
-    """Main game simulation. Runs agents through rounds of a game."""
 
+    # Initialize simulation with agents, game config, network, and rounds / 初始化仿真，设置智能体、游戏配置、网络和轮数
     def __init__(self,
-                 agents: Dict[str, AgentState],
-                 game_config: GameConfig,
-                 network: InteractionNetwork,
-                 rounds: int = 100,
-                 verbose: bool = True):
+                 agents,
+                 game_config,
+                 network,
+                 rounds=100,
+                 verbose=True):
         self.agents = agents
         self.game_config = game_config
         self.network = network
         self.total_rounds = rounds
         self.verbose = verbose
-        
+
         self.current_round = 0
-        self.round_results: List[Dict] = []
-        
-    def run(self,
-            round_callback: Callable = None) -> Dict:
-        """Run the full simulation and return results."""
+        self.round_results = []
+
+    # Run the full simulation and return results / 运行完整仿真并返回结果
+    def run(self, round_callback=None):
         if self.verbose:
             print(f"\n{'='*60}")
             print(f"Starting Game Theory Simulation")
@@ -98,27 +95,27 @@ class GameSimulation:
             print(f"Network: {self.network.__class__.__name__}")
             print(f"Total Rounds: {self.total_rounds}")
             print(f"{'='*60}\n")
-        
+
         for round_num in range(1, self.total_rounds + 1):
             self.current_round = round_num
             round_data = self._run_single_round()
             self.round_results.append(round_data)
-            
+
             if round_callback:
                 round_callback(round_num, round_data)
 
             if self.verbose and round_num % 10 == 0:
                 self._print_progress(round_num)
-        
+
         results = self._compile_results()
-        
+
         if self.verbose:
             self._print_final_results(results)
-        
+
         return results
-    
-    def _run_single_round(self) -> Dict:
-        """Run one round with parallel action decisions."""
+
+    # Run one round with parallel action decisions / 运行一轮并行动作决策
+    def _run_single_round(self):
         round_data = {
             "round": self.current_round,
             "interactions": [],
@@ -177,20 +174,20 @@ class GameSimulation:
             round_data["round_payoffs"][agent2_name] += payoff2
 
         return round_data
-    
-    
-    def _compile_results(self) -> Dict:
-        """Compile final simulation results."""
+
+
+    # Compile final simulation results / 编译最终仿真结果
+    def _compile_results(self):
         final_payoffs = {
-            name: agent.total_payoff 
+            name: agent.total_payoff
             for name, agent in self.agents.items()
         }
-        
+
         cooperation_rates = {
             name: agent.get_cooperation_rate()
             for name, agent in self.agents.items()
         }
-        
+
         # Cooperation rate over time
         cooperation_evolution = []
         for round_data in self.round_results:
@@ -202,10 +199,10 @@ class GameSimulation:
                 if interaction["action2"] == "cooperate":
                     total_coop += 1
                 total_actions += 2
-            
+
             rate = total_coop / total_actions if total_actions > 0 else 0
             cooperation_evolution.append(rate)
-        
+
         return {
             "config": {
                 "game": self.game_config.name,
@@ -217,36 +214,36 @@ class GameSimulation:
             "cooperation_rates": cooperation_rates,
             "cooperation_evolution": cooperation_evolution,
             "agent_details": {
-                name: agent.to_dict() 
+                name: agent.to_dict()
                 for name, agent in self.agents.items()
             },
             "round_history": self.round_results,
         }
-    
-    def _print_progress(self, round_num: int):
-        """Print round progress."""
+
+    # Print round progress / 打印轮次进度
+    def _print_progress(self, round_num):
         payoffs = [(name, agent.total_payoff) for name, agent in self.agents.items()]
         payoffs.sort(key=lambda x: x[1], reverse=True)
-        
+
         # Current cooperation rate
         last_round = self.round_results[-1]
         coop_count = sum(
-            (1 if i["action1"] == "cooperate" else 0) + 
+            (1 if i["action1"] == "cooperate" else 0) +
             (1 if i["action2"] == "cooperate" else 0)
             for i in last_round["interactions"]
         )
         total_actions = len(last_round["interactions"]) * 2
         coop_rate = coop_count / total_actions if total_actions > 0 else 0
-        
+
         print(f"Round {round_num:4d} | Coop Rate: {coop_rate:.1%} | "
               f"Top: {payoffs[0][0]}({payoffs[0][1]:.1f})")
-    
-    def _print_final_results(self, results: Dict):
-        """Print final rankings and stats."""
+
+    # Print final rankings and stats / 打印最终排名和统计
+    def _print_final_results(self, results):
         print(f"\n{'='*60}")
         print("SIMULATION COMPLETE")
         print(f"{'='*60}")
-        
+
         print("\nFinal Rankings:")
         payoffs = list(results["final_payoffs"].items())
         payoffs.sort(key=lambda x: x[1], reverse=True)
@@ -255,45 +252,45 @@ class GameSimulation:
             strategy = self.agents[name].strategy.name
             print(f"  {i}. {name:15s} | Payoff: {payoff:7.1f} | "
                   f"Coop: {coop_rate:.1%} | Strategy: {strategy}")
-        
+
         print(f"\nOverall Cooperation Rate: "
               f"{sum(results['cooperation_rates'].values())/len(results['cooperation_rates']):.1%}")
-    
-    def save_results(self, output_dir: str = "experiments/results") -> str:
-        """Save results to JSON file."""
+
+    # Save results to JSON file / 保存结果到JSON文件
+    def save_results(self, output_dir="experiments/results"):
         os.makedirs(output_dir, exist_ok=True)
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{output_dir}/sim_{self.game_config.name.replace(' ', '_')}_{timestamp}.json"
-        
+
         results = self._compile_results()
-        
+
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
-        
+
         print(f"\nResults saved to: {filename}")
         return filename
 
 
 # --- Helper Functions ---
 
+# Create a simulation with given agents and game type / 创建给定智能体和游戏类型的仿真
 def create_simulation(
-    num_agents: int = 5,
-    strategy_config: Dict[str, str] = None,
-    game_type: str = "prisoners_dilemma",
-    network_type: str = "fully_connected",
-    rounds: int = 100,
+    num_agents=5,
+    strategy_config=None,
+    game_type="prisoners_dilemma",
+    network_type="fully_connected",
+    rounds=100,
     **kwargs
-) -> GameSimulation:
-    """Create a simulation with given agents and game type."""
+):
     from .games import GAME_REGISTRY
     from .network import create_network
-    
+
     agent_names = [f"Agent_{i}" for i in range(num_agents)]
 
     if strategy_config is None:
         strategy_config = {name: "tit_for_tat" for name in agent_names}
-    
+
     agents = {}
     for name in agent_names:
         strategy_name = strategy_config.get(name, "tit_for_tat")
@@ -303,10 +300,10 @@ def create_simulation(
             strategy=strategy,
             description=f"Agent using {strategy_name} strategy",
         )
-    
+
     game_config = GAME_REGISTRY.get(game_type, PRISONERS_DILEMMA)
     network = create_network(network_type, agent_names, **kwargs)
-    
+
     return GameSimulation(
         agents=agents,
         game_config=game_config,
@@ -315,21 +312,21 @@ def create_simulation(
     )
 
 
+# Run a quick experiment with given strategies / 使用给定策略运行快速实验
 def run_quick_experiment(
-    strategies: List[str] = None,
-    game_type: str = "prisoners_dilemma",
-    network_type: str = "fully_connected",
-    rounds: int = 50,
-    verbose: bool = True,
-) -> Dict:
-    """Run a quick experiment with given strategies."""
+    strategies=None,
+    game_type="prisoners_dilemma",
+    network_type="fully_connected",
+    rounds=50,
+    verbose=True,
+):
     if strategies is None:
         strategies = ["tit_for_tat", "always_cooperate", "always_defect", "random", "pavlov"]
-    
+
     num_agents = len(strategies)
     agent_names = [f"Agent_{i}" for i in range(num_agents)]
     strategy_config = dict(zip(agent_names, strategies))
-    
+
     sim = create_simulation(
         num_agents=num_agents,
         strategy_config=strategy_config,
@@ -338,5 +335,5 @@ def run_quick_experiment(
         rounds=rounds,
     )
     sim.verbose = verbose
-    
+
     return sim.run()
