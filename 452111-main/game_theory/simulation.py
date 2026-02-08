@@ -1,14 +1,5 @@
 """
-博弈仿真引擎 - 管理多智能体博弈仿真流程
-Game Simulation Engine - Manage multi-agent game simulation
-
-核心类 / Core classes:
-  - AgentState:      智能体状态，记录历史和收益 / Agent state with history and payoff
-  - GameSimulation:  仿真主类，支持并行 API 调用 / Main simulation with parallel API calls
-
-使用 ThreadPoolExecutor 并行化 LLM API 调用，将 N 个 Agent 的决策
-从串行 (N * latency) 缩短到并行 (1 * latency)
-Uses ThreadPoolExecutor to parallelize LLM API calls
+Game simulation engine. Runs multi-agent games with parallel LLM API calls.
 """
 import json
 import os
@@ -17,10 +8,7 @@ from datetime import datetime
 from typing import List, Dict, Callable, Optional, Tuple
 from dataclasses import dataclass, field
 
-# 针对 I/O 密集型 API 请求优化的线程池大小
-# Optimized thread pool size for I/O-bound API requests
-# Python default is min(32, CPU+4), but API calls are pure I/O waits
-# 100 threads are sufficient for large-scale parallel API calls
+# Thread pool size for parallel API calls
 MAX_API_WORKERS = 100
 
 from .games import GameConfig, Action, get_payoff, PRISONERS_DILEMMA
@@ -30,22 +18,18 @@ from .strategies import Strategy, create_strategy
 
 @dataclass
 class AgentState:
-    """
-    Agent状态（简化版，替代原来的Persona）
-    Agent State (simplified, replacing original Persona)
-    """
+    """Agent state: tracks strategy, history, and payoff."""
     name: str
     strategy: Strategy
     description: str = ""
     personality: str = ""
     
-    # 博弈相关状态
     game_history: List[Dict] = field(default_factory=list)
     total_payoff: float = 0.0
     opponent_models: Dict[str, str] = field(default_factory=dict)
     
     def record_game(self, opponent: str, my_action: Action, opp_action: Action, payoff: float):
-        """记录一次博弈"""
+        """Record one game round."""
         self.game_history.append({
             "round": len(self.game_history) + 1,
             "opponent": opponent,
@@ -56,7 +40,7 @@ class AgentState:
         self.total_payoff += payoff
     
     def get_history_with(self, opponent: str) -> List[Tuple[Action, Action]]:
-        """获取与特定对手的历史"""
+        """Get history of games with a specific opponent."""
         history = []
         for g in self.game_history:
             if g["opponent"] == opponent:
@@ -66,14 +50,14 @@ class AgentState:
         return history
     
     def get_cooperation_rate(self) -> float:
-        """计算合作率"""
+        """Calculate cooperation rate across all games."""
         if not self.game_history:
             return 0.0
         coop_count = sum(1 for g in self.game_history if g["my_action"] == "cooperate")
         return coop_count / len(self.game_history)
     
     def to_dict(self) -> Dict:
-        """导出为字典"""
+        """Export as dictionary."""
         return {
             "name": self.name,
             "strategy": self.strategy.name,
@@ -85,25 +69,14 @@ class AgentState:
 
 
 class GameSimulation:
-    """
-    博弈仿真主类
-    Main Game Simulation Class
-    """
-    
+    """Main game simulation. Runs agents through rounds of a game."""
+
     def __init__(self,
                  agents: Dict[str, AgentState],
                  game_config: GameConfig,
                  network: InteractionNetwork,
                  rounds: int = 100,
                  verbose: bool = True):
-        """
-        Args:
-            agents: Agent字典 {name: AgentState}
-            game_config: 博弈配置
-            network: 交互网络
-            rounds: 总轮数
-            verbose: 是否打印详细信息
-        """
         self.agents = agents
         self.game_config = game_config
         self.network = network
@@ -115,16 +88,7 @@ class GameSimulation:
         
     def run(self,
             round_callback: Callable = None) -> Dict:
-        """
-        运行完整仿真
-        Run complete simulation
-
-        Args:
-            round_callback: 每轮结束后的回调函数 callback(round_num, round_data)
-
-        Returns:
-            仿真结果
-        """
+        """Run the full simulation and return results."""
         if self.verbose:
             print(f"\n{'='*60}")
             print(f"Starting Game Theory Simulation")
@@ -154,72 +118,52 @@ class GameSimulation:
         return results
     
     def _run_single_round(self) -> Dict:
-        """
-        执行单轮博弈（并行化版本）
-        Run a single round of the game (parallelized)
-
-        优化：使用 ThreadPoolExecutor 并行执行所有 Agent 的 choose_action 调用，
-        将每轮耗时从 N * API延迟 缩短到 1 * API延迟
-        Optimization: ThreadPoolExecutor parallelizes all choose_action calls,
-        reducing per-round time from N * API_latency to 1 * API_latency
-        """
+        """Run one round with parallel action decisions."""
         round_data = {
             "round": self.current_round,
             "interactions": [],
             "round_payoffs": {name: 0.0 for name in self.agents}
         }
 
-        # 获取本轮交互对
         pairs = self.network.get_interaction_pairs()
 
-        # 准备所有决策任务：收集 (agent, history, opponent_name) 元组
         decision_tasks = []
         for agent1_name, agent2_name in pairs:
             agent1 = self.agents[agent1_name]
             agent2 = self.agents[agent2_name]
 
-            # 获取双方历史
             history1 = agent1.get_history_with(agent2_name)
             history2 = agent2.get_history_with(agent1_name)
 
-            # 添加两个决策任务（每对交互需要两个决策）
             decision_tasks.append((agent1.strategy, history1, agent2_name))
             decision_tasks.append((agent2.strategy, history2, agent1_name))
 
-        # 定义执行单个决策的函数
         def execute_decision(task):
             strategy, history, opponent_name = task
             return strategy.choose_action(history, opponent_name)
 
-        # 并行执行所有决策
-        # ThreadPoolExecutor 适合 I/O 密集型任务（如 API 调用）
-        # 使用较大的线程池以确保所有 Agent 真正同时发起请求
+        # Parallel execution of all decisions
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_API_WORKERS) as executor:
             actions = list(executor.map(execute_decision, decision_tasks))
 
-        # 处理结果：将并行获取的动作与交互对匹配
+        # Match actions back to pairs
         for i, (agent1_name, agent2_name) in enumerate(pairs):
             agent1 = self.agents[agent1_name]
             agent2 = self.agents[agent2_name]
 
-            # 从并行结果中获取动作（每对交互占用两个连续的结果）
             action1 = actions[i * 2]
             action2 = actions[i * 2 + 1]
 
-            # 计算收益
             payoff1, payoff2 = get_payoff(self.game_config, action1, action2)
 
-            # 记录结果
             agent1.record_game(agent2_name, action1, action2, payoff1)
             agent2.record_game(agent1_name, action2, action1, payoff2)
 
-            # 更新 LLM 策略的 total_payoff（如果有此方法）
             if hasattr(agent1.strategy, 'update_payoff'):
                 agent1.strategy.update_payoff(payoff1)
             if hasattr(agent2.strategy, 'update_payoff'):
                 agent2.strategy.update_payoff(payoff2)
 
-            # 保存交互数据
             round_data["interactions"].append({
                 "agent1": agent1_name,
                 "agent2": agent2_name,
@@ -236,7 +180,7 @@ class GameSimulation:
     
     
     def _compile_results(self) -> Dict:
-        """汇总仿真结果 / Compile final simulation results"""
+        """Compile final simulation results."""
         final_payoffs = {
             name: agent.total_payoff 
             for name, agent in self.agents.items()
@@ -247,7 +191,7 @@ class GameSimulation:
             for name, agent in self.agents.items()
         }
         
-        # 计算合作率随时间的变化
+        # Cooperation rate over time
         cooperation_evolution = []
         for round_data in self.round_results:
             total_coop = 0
@@ -280,11 +224,11 @@ class GameSimulation:
         }
     
     def _print_progress(self, round_num: int):
-        """打印进度"""
+        """Print round progress."""
         payoffs = [(name, agent.total_payoff) for name, agent in self.agents.items()]
         payoffs.sort(key=lambda x: x[1], reverse=True)
         
-        # 计算当前整体合作率
+        # Current cooperation rate
         last_round = self.round_results[-1]
         coop_count = sum(
             (1 if i["action1"] == "cooperate" else 0) + 
@@ -298,12 +242,12 @@ class GameSimulation:
               f"Top: {payoffs[0][0]}({payoffs[0][1]:.1f})")
     
     def _print_final_results(self, results: Dict):
-        """打印最终结果"""
+        """Print final rankings and stats."""
         print(f"\n{'='*60}")
         print("SIMULATION COMPLETE")
         print(f"{'='*60}")
         
-        print("\n📊 Final Rankings:")
+        print("\nFinal Rankings:")
         payoffs = list(results["final_payoffs"].items())
         payoffs.sort(key=lambda x: x[1], reverse=True)
         for i, (name, payoff) in enumerate(payoffs, 1):
@@ -312,11 +256,11 @@ class GameSimulation:
             print(f"  {i}. {name:15s} | Payoff: {payoff:7.1f} | "
                   f"Coop: {coop_rate:.1%} | Strategy: {strategy}")
         
-        print(f"\n📈 Overall Cooperation Rate: "
+        print(f"\nOverall Cooperation Rate: "
               f"{sum(results['cooperation_rates'].values())/len(results['cooperation_rates']):.1%}")
     
     def save_results(self, output_dir: str = "experiments/results") -> str:
-        """保存结果到文件"""
+        """Save results to JSON file."""
         os.makedirs(output_dir, exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -327,13 +271,11 @@ class GameSimulation:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
         
-        print(f"\n💾 Results saved to: {filename}")
+        print(f"\nResults saved to: {filename}")
         return filename
 
 
-# ============================================================
-# 快速创建仿真的辅助函数 / Helper Functions
-# ============================================================
+# --- Helper Functions ---
 
 def create_simulation(
     num_agents: int = 5,
@@ -343,31 +285,15 @@ def create_simulation(
     rounds: int = 100,
     **kwargs
 ) -> GameSimulation:
-    """
-    快速创建仿真实例
-    Quickly create simulation instance
-    
-    Args:
-        num_agents: Agent数量
-        strategy_config: 策略配置 {agent_name: strategy_name} 或 None(全部用tit_for_tat)
-        game_type: 博弈类型
-        network_type: 网络类型
-        rounds: 轮数
-    
-    Returns:
-        GameSimulation实例
-    """
+    """Create a simulation with given agents and game type."""
     from .games import GAME_REGISTRY
     from .network import create_network
     
-    # 创建agent名称
     agent_names = [f"Agent_{i}" for i in range(num_agents)]
-    
-    # 设置默认策略
+
     if strategy_config is None:
         strategy_config = {name: "tit_for_tat" for name in agent_names}
     
-    # 创建agents
     agents = {}
     for name in agent_names:
         strategy_name = strategy_config.get(name, "tit_for_tat")
@@ -378,10 +304,7 @@ def create_simulation(
             description=f"Agent using {strategy_name} strategy",
         )
     
-    # 获取博弈配置
     game_config = GAME_REGISTRY.get(game_type, PRISONERS_DILEMMA)
-    
-    # 创建网络
     network = create_network(network_type, agent_names, **kwargs)
     
     return GameSimulation(
@@ -399,20 +322,7 @@ def run_quick_experiment(
     rounds: int = 50,
     verbose: bool = True,
 ) -> Dict:
-    """
-    快速运行实验
-    Run quick experiment
-    
-    Args:
-        strategies: 策略列表（每个agent一个策略）
-        game_type: 博弈类型
-        network_type: 网络类型
-        rounds: 轮数
-        verbose: 是否打印详细信息
-    
-    Returns:
-        实验结果
-    """
+    """Run a quick experiment with given strategies."""
     if strategies is None:
         strategies = ["tit_for_tat", "always_cooperate", "always_defect", "random", "pavlov"]
     

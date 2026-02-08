@@ -1,14 +1,7 @@
 """
-LLM 博弈策略模块
-LLM-based Game Theory Strategy Module
-
-通过调用 LLM API 来决定合作或背叛，支持两种模式：
-Calls LLM API to decide cooperate/defect, supports two modes:
-  - pure:   LLM 独立分析历史 / LLM analyzes history independently
-  - hybrid: 代码预处理统计后交给 LLM / Code pre-processes stats for LLM
-
-包含 ResponseParser 解析器，支持 20+ 种响应格式（中英文）
-Includes ResponseParser with 20+ response format patterns (EN/CN)
+LLM-based game strategy.
+Modes: pure (LLM analyzes raw history) or hybrid (code pre-processes stats).
+Includes ResponseParser for parsing LLM responses.
 """
 
 import re
@@ -19,16 +12,14 @@ from typing import Tuple, Optional, List, Dict, Any
 from dataclasses import dataclass, field
 
 
-# ============================================================
-# 模板加载 / Template Loading
-# ============================================================
+# --- Template Loading ---
 
 _TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "prompts")
 _TEMPLATE_CACHE: Dict[str, str] = {}
 
 
 def _load_template(name: str) -> str:
-    """加载提示模板 / Load prompt template from prompts/ directory"""
+    """Load prompt template from prompts/ directory."""
     if name not in _TEMPLATE_CACHE:
         path = os.path.join(_TEMPLATE_DIR, f"{name}.txt")
         with open(path, "r", encoding="utf-8") as f:
@@ -36,98 +27,69 @@ def _load_template(name: str) -> str:
     return _TEMPLATE_CACHE[name]
 
 
-# ============================================================
-# 解析状态枚举 / Parse Status Enum
-# ============================================================
+# --- Parse Status ---
 
 class ParseStatus(Enum):
-    """解析结果状态"""
-    SUCCESS = "success"           # 高置信度匹配
-    FALLBACK = "fallback"         # 低置信度匹配
-    AMBIGUOUS = "ambiguous"       # 矛盾信号
-    FAILED = "failed"             # 解析失败
-
-
-# ============================================================
-# 解析结果数据类 / Parse Result Dataclass
-# ============================================================
+    SUCCESS = "success"
+    FALLBACK = "fallback"
+    AMBIGUOUS = "ambiguous"
+    FAILED = "failed"
 
 @dataclass
 class ParseResult:
-    """LLM 响应解析结果"""
-    action: Optional[Any] = None  # Action 枚举，延迟导入
+    """Result of parsing an LLM response."""
+    action: Optional[Any] = None
     status: ParseStatus = ParseStatus.FAILED
     confidence: float = 0.0
     matched_pattern: str = ""
     raw_response: str = ""
 
-    # 调试信息
     cooperate_signals: List[Tuple[str, float]] = field(default_factory=list)
     defect_signals: List[Tuple[str, float]] = field(default_factory=list)
 
 
-# ============================================================
-# 响应解析器 / Response Parser
-# ============================================================
+# --- Response Parser ---
 
 class ResponseParser:
-    """
-    LLM 响应解析器
+    """Parse LLM responses into cooperate/defect actions."""
 
-    特点:
-    1. 支持20+种格式变体
-    2. 置信度评分
-    3. 矛盾检测
-    4. 解析失败时随机选择（消除偏差）
-    """
-
-    # 合作信号 (按优先级排序)
+    # Cooperate patterns (ordered by confidence)
     COOPERATE_PATTERNS = [
-        # 精确格式
         (r"ACTION:\s*COOPERATE", 1.0),
         (r"ACTION:\s*C\b", 0.95),
 
-        # 宽松格式 (大小写不敏感)
         (r"action:\s*cooperate", 0.9),
         (r"my\s+action\s*(?:is)?:?\s*cooperate", 0.85),
         (r"i\s+(?:will\s+)?(?:choose|select|pick)\s+(?:to\s+)?cooperate", 0.85),
         (r"decision:\s*cooperate", 0.85),
         (r"choice:\s*cooperate", 0.85),
 
-        # 自然语言
         (r"i(?:'ll|\s+will)\s+cooperate", 0.8),
         (r"let(?:'s|s)\s+cooperate", 0.75),
         (r"cooperating\s+(?:is|seems)\s+(?:the\s+)?(?:best|better|right)", 0.7),
         (r"(?:strategy|best|optimal)\s+(?:is\s+)?to\s+cooperate", 0.7),
         (r"to\s+cooperate\s+(?:this|now|here)", 0.65),
 
-        # 中文
         (r"(?:我)?(?:选择|决定)?合作", 0.85),
         (r"动作[：:]\s*合作", 0.9),
         (r"行动[：:]\s*合作", 0.9),
         (r"选择[：:]\s*合作", 0.85),
 
-        # 单字母 (低置信度)
         (r"\b(?:action|choice|decision)\s*[：:=]\s*C\b", 0.7),
-
-        # 兜底
         (r"\bcooperate\b", 0.5),
     ]
 
-    # 背叛信号 (按优先级排序)
+    # Defect patterns (ordered by confidence)
     DEFECT_PATTERNS = [
-        # 精确格式
         (r"ACTION:\s*DEFECT", 1.0),
         (r"ACTION:\s*D\b", 0.95),
 
-        # 宽松格式
         (r"action:\s*defect", 0.9),
         (r"my\s+action\s*(?:is)?:?\s*defect", 0.85),
         (r"i\s+(?:will\s+)?(?:choose|select|pick)\s+(?:to\s+)?defect", 0.85),
         (r"decision:\s*defect", 0.85),
         (r"choice:\s*defect", 0.85),
 
-        # 自然语言
         (r"i(?:'ll|\s+will)\s+defect", 0.8),
         (r"i\s+(?:must|should|have\s+to)\s+defect", 0.75),
         (r"defecting\s+(?:is|seems)\s+(?:the\s+)?(?:best|better|right|optimal)", 0.7),
@@ -135,11 +97,9 @@ class ResponseParser:
         (r"(?:strategy|best|optimal)\s+(?:is\s+)?to\s+defect", 0.7),
         (r"to\s+defect\s+(?:this|now|here)", 0.65),
 
-        # 同义词
         (r"i(?:'ll|\s+will)\s+betray", 0.8),
         (r"i\s+(?:choose|select)\s+(?:to\s+)?betray", 0.8),
 
-        # 中文
         (r"(?:我)?(?:选择|决定)?背叛", 0.85),
         (r"(?:我)?(?:选择|决定)?不合作", 0.8),
         (r"动作[：:]\s*背叛", 0.9),
@@ -147,10 +107,7 @@ class ResponseParser:
         (r"选择[：:]\s*背叛", 0.85),
         (r"动作[：:]\s*D\b", 0.85),
 
-        # 单字母 (低置信度)
         (r"\b(?:action|choice|decision)\s*[：:=]\s*D\b", 0.7),
-
-        # 兜底
         (r"\bdefect\b(?!\s*(?:ion|ive|or))", 0.5),
     ]
 
@@ -164,7 +121,7 @@ class ResponseParser:
             "forced_cooperate": 0,
             "forced_defect": 0,
         }
-        self._Action = None  # 延迟导入
+        self._Action = None
 
     @property
     def Action(self):
@@ -177,7 +134,7 @@ class ResponseParser:
         return self._Action
 
     def parse(self, response: str) -> ParseResult:
-        """解析 LLM 响应"""
+        """Parse an LLM response into an action."""
         self.stats["total"] += 1
 
         if not response or not response.strip():
@@ -186,12 +143,9 @@ class ResponseParser:
 
         text = response.strip()
 
-        # 扫描合作信号
         coop_signals = self._scan_patterns(text, self.COOPERATE_PATTERNS)
-        # 扫描背叛信号
         defect_signals = self._scan_patterns(text, self.DEFECT_PATTERNS)
 
-        # 计算最高置信度
         max_coop = max([conf for _, conf in coop_signals], default=0)
         max_defect = max([conf for _, conf in defect_signals], default=0)
 
@@ -201,20 +155,15 @@ class ResponseParser:
             defect_signals=defect_signals,
         )
 
-        # 决策逻辑
         if max_coop == 0 and max_defect == 0:
-            # 无信号 -> 随机
             self.stats["failed"] += 1
             return self._random_fallback(response, "no signal")
 
         if max_coop > 0 and max_defect > 0:
-            # 有矛盾信号
             diff = abs(max_coop - max_defect)
             if diff < 0.2:
-                # 置信度接近 -> 矛盾
                 self.stats["ambiguous"] += 1
                 return self._random_fallback(response, "ambiguous")
-            # 否则取高的
 
         if max_coop > max_defect:
             result.action = self.Action.COOPERATE
@@ -231,17 +180,17 @@ class ResponseParser:
         return result
 
     def _scan_patterns(self, text: str, patterns: List[Tuple[str, float]]) -> List[Tuple[str, float]]:
-        """扫描匹配模式"""
+        """Scan text for matching patterns, return sorted by confidence."""
         matches = []
         for pattern, confidence in patterns:
             if re.search(pattern, text, re.IGNORECASE):
                 matches.append((pattern, confidence))
-        # 按置信度排序
+        # Sort by confidence
         matches.sort(key=lambda x: x[1], reverse=True)
         return matches
 
     def _random_fallback(self, response: str, reason: str) -> ParseResult:
-        """随机选择（消除偏差）"""
+        """Random choice when parsing fails (unbiased fallback)."""
         action = random.choice([self.Action.COOPERATE, self.Action.DEFECT])
         if action == self.Action.COOPERATE:
             self.stats["forced_cooperate"] += 1
@@ -257,7 +206,7 @@ class ResponseParser:
         )
 
     def get_stats(self) -> Dict:
-        """获取解析统计"""
+        """Get parsing statistics."""
         total = self.stats["total"]
         if total == 0:
             return self.stats
@@ -271,23 +220,10 @@ class ResponseParser:
         }
 
 
-# ============================================================
-# LLM 策略主类 / LLM Strategy Main Class
-# ============================================================
+# --- LLM Strategy ---
 
 class LLMStrategy:
-    """
-    基于 LLM 的博弈策略
-
-    模式:
-    - pure: LLM 自己分析历史
-    - hybrid: 代码预处理历史，告诉 LLM 统计信息
-
-    特点:
-    1. 宽松解析，支持多种输出格式
-    2. 解析失败时随机选择（无偏差）
-    3. max_tokens=1000 防止截断
-    """
+    """LLM-based game strategy. Calls LLM API to decide cooperate/defect."""
 
     DEFAULT_MAX_TOKENS = 1000
 
@@ -303,20 +239,7 @@ class LLMStrategy:
                  agent_name: str = "Player",
                  personality: str = "rational and analytical",
                  strategy_tendency: str = "balanced"):
-        """
-        Args:
-            provider: LLM 提供商 (deepseek/openai/gemini)
-            mode: 策略模式 (pure/hybrid)
-            game_config: 博弈配置
-            max_tokens: 最大 token 数
-            temperature: 温度参数
-            persona_prompt: 自定义人格提示
-            history_window: 历史窗口大小 (None 表示使用全部历史)
-            enable_cheap_talk: 是否启用 cheap talk 消息功能
-            agent_name: 智能体名称
-            personality: 性格描述
-            strategy_tendency: 策略倾向
-        """
+        """Initialize LLM strategy with provider, mode, and game config."""
         self.provider = provider
         self.mode = mode
         self.game_config = game_config
@@ -332,20 +255,18 @@ class LLMStrategy:
         self.parser = ResponseParser()
         self._client = None
 
-        # 调试信息
         self.raw_responses: List[str] = []
         self.total_payoff = 0.0
         self.current_round = 0
-        self.last_message: str = ""  # 最后生成的消息
+        self.last_message: str = ""
 
     @property
     def name(self) -> str:
-        """策略名称，用于显示和日志"""
         return f"LLM ({self.provider}/{self.mode})"
 
     @property
     def client(self):
-        """延迟加载 LLM 客户端"""
+        """Lazy-load LLM client."""
         if self._client is None:
             try:
                 from .llm_api import LLMClient
@@ -356,7 +277,6 @@ class LLMStrategy:
 
     @property
     def Action(self):
-        """延迟导入 Action"""
         try:
             from .games import Action
         except ImportError:
@@ -367,20 +287,7 @@ class LLMStrategy:
                       history: List[Tuple[Any, Any]] = None,
                       opponent_name: str = "Opponent",
                       opponent_message: str = None) -> Any:
-        """
-        选择动作
-
-        接口与 Strategy 基类一致，内部将合并的历史分离
-
-        Args:
-            history: 博弈历史 [(我的动作, 对手动作), ...] 或 None
-            opponent_name: 对手名称
-            opponent_message: 对手发送的消息 (cheap talk)
-
-        Returns:
-            Action.COOPERATE 或 Action.DEFECT
-        """
-        # 将合并的历史分离为 my_history 和 opponent_history
+        """Choose cooperate or defect based on history."""
         if history is None:
             history = []
         my_history = [my_act for my_act, _ in history]
@@ -400,7 +307,6 @@ class LLMStrategy:
             return result.action
 
         except Exception as e:
-            # API 错误时随机选择
             return random.choice([self.Action.COOPERATE, self.Action.DEFECT])
 
     def _build_prompt(self,
@@ -408,9 +314,7 @@ class LLMStrategy:
                       opponent_history: List,
                       opponent_name: str,
                       opponent_message: str = None) -> str:
-        """构建 LLM 提示"""
-
-        # 获取博弈描述
+        """Build LLM prompt based on mode."""
         if self.game_config:
             try:
                 from .games import get_payoff_description
@@ -431,11 +335,11 @@ class LLMStrategy:
                            opponent_name: str,
                            game_desc: str,
                            opponent_message: str = None) -> str:
-        """Pure 模式提示 - LLM 自己分析"""
+        """Pure mode: LLM analyzes raw history."""
         self.current_round = len(my_history) + 1
         history_str = self._format_history(my_history, opponent_history)
 
-        # 应用历史窗口限制（与 hybrid 模式保持一致）
+        # Apply history window
         window = self.history_window if self.history_window else len(my_history)
         windowed_my = my_history[-window:] if my_history else []
         windowed_opp = opponent_history[-window:] if opponent_history else []
@@ -456,10 +360,8 @@ class LLMStrategy:
             history_summary=history_str if history_str else "No history yet (first round)",
         )
 
-        # 如果有对手消息，添加到提示中
         if opponent_message:
             message_section = f"\n=== OPPONENT MESSAGE ===\n{opponent_name} says: \"{opponent_message}\"\n"
-            # 插入到 YOUR TASK 之前
             prompt = prompt.replace("=== YOUR TASK ===", message_section + "=== YOUR TASK ===")
 
         return prompt
@@ -470,7 +372,7 @@ class LLMStrategy:
                              opponent_name: str,
                              game_desc: str,
                              opponent_message: str = None) -> str:
-        """Hybrid 模式提示 - 代码预处理统计"""
+        """Hybrid mode: code pre-processes stats for LLM."""
         self.current_round = len(my_history) + 1
         rounds_played = len(opponent_history)
 
@@ -508,16 +410,14 @@ class LLMStrategy:
             history_summary=history_summary,
         )
 
-        # 如果有对手消息，添加到提示中
         if opponent_message:
             message_section = f"\n=== OPPONENT MESSAGE ===\n{opponent_name} says: \"{opponent_message}\"\n"
-            # 插入到 YOUR TASK 之前
             prompt = prompt.replace("=== YOUR TASK ===", message_section + "=== YOUR TASK ===")
 
         return prompt
 
     def _analyze_pattern(self, opponent_history: List) -> str:
-        """分析对手行为模式"""
+        """Classify opponent behavior from recent history."""
         if len(opponent_history) < 3:
             return "Not enough data"
 
@@ -535,11 +435,11 @@ class LLMStrategy:
             return "Always defects"
 
     def _format_history(self, my_history: List, opponent_history: List) -> str:
-        """格式化历史记录"""
+        """Format history as readable text."""
         if not my_history:
             return ""
 
-        # 使用 history_window 限制历史长度，默认为全部
+        # Apply history window
         window = self.history_window if self.history_window else len(my_history)
 
         lines = []
@@ -551,15 +451,15 @@ class LLMStrategy:
         return "\n".join(lines[-window:])
 
     def _get_action_value(self, action) -> str:
-        """安全获取动作的字符串值，兼容 Action 枚举和字符串"""
+        """Get action string value (works with both enum and string)."""
         if hasattr(action, 'value'):
             return action.value
         return str(action).lower()
 
     def _get_payoffs(self) -> Dict[str, int]:
-        """从 game_config 提取收益矩阵数值"""
+        """Extract payoff values from game config."""
         if not self.game_config:
-            return {"cc": 3, "cd": 0, "dc": 5, "dd": 1}  # 默认囚徒困境
+            return {"cc": 3, "cd": 0, "dc": 5, "dd": 1}
         matrix = self.game_config.payoff_matrix
         return {
             "cc": matrix[(self.Action.COOPERATE, self.Action.COOPERATE)][0],
@@ -571,27 +471,14 @@ class LLMStrategy:
     def generate_message(self,
                          history: List[Tuple[Any, Any]] = None,
                          opponent_name: str = "Opponent") -> str:
-        """
-        生成 Cheap Talk 消息
-
-        接口与 choose_action 保持一致，使用合并的历史格式
-
-        Args:
-            history: 博弈历史 [(我的动作, 对手动作), ...] 或 None
-            opponent_name: 对手名称
-
-        Returns:
-            要发送给对手的消息
-        """
+        """Generate a cheap talk message to send to opponent."""
         if not self.enable_cheap_talk:
             return ""
 
-        # 将合并的历史分离
         if history is None:
             history = []
         rounds_played = len(history)
 
-        # 构建消息生成提示
         prompt = f"""You are playing an iterated game against {opponent_name}.
 
 Rounds played so far: {rounds_played}
@@ -611,7 +498,6 @@ MESSAGE:"""
                 temperature=self.temperature,
             )
 
-            # 提取消息
             message = response.strip()
             if "MESSAGE:" in message:
                 message = message.split("MESSAGE:")[-1].strip()
@@ -623,11 +509,11 @@ MESSAGE:"""
             return ""
 
     def update_payoff(self, payoff: float):
-        """更新累计收益"""
+        """Add payoff to running total."""
         self.total_payoff += payoff
 
     def get_debug_info(self) -> Dict:
-        """获取调试信息"""
+        """Get debug info for diagnostics."""
         return {
             "provider": self.provider,
             "mode": self.mode,
@@ -639,16 +525,14 @@ MESSAGE:"""
         }
 
     def reset(self):
-        """重置状态"""
+        """Reset state for a new game."""
         self.raw_responses = []
         self.total_payoff = 0.0
         self.last_message = ""
         self.parser = ResponseParser()
 
 
-# ============================================================
-# 测试代码 / Test Code
-# ============================================================
+# --- Test Code ---
 
 if __name__ == "__main__":
     print("=" * 60)
@@ -686,7 +570,7 @@ if __name__ == "__main__":
             success = (result.action.value.upper() == expected_action and
                       result.status in [ParseStatus.SUCCESS, ParseStatus.FALLBACK])
 
-        icon = "✅" if success else "❌"
+        icon = "OK" if success else "FAIL"
         action_str = result.action.value.upper() if result.action else "None"
         status_str = "[success]" if success else "[failed]"
 

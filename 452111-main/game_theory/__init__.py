@@ -1,17 +1,6 @@
 """
-博弈论多智能体仿真模块
-Game Theory Multi-Agent Simulation Module
-
-子模块 / Submodules:
-  - games:        博弈定义和收益矩阵 / Game definitions and payoff matrices
-  - strategies:   经典博弈策略 / Classical game strategies
-  - llm_strategy: LLM 决策策略 / LLM-based decision strategy
-  - llm_api:      统一 LLM API 接口 / Unified LLM API interface
-  - network:      网络拓扑 / Network topologies
-  - simulation:   仿真引擎 / Simulation engine
-
-注意: LLMStrategy 需要单独导入 / Note: import LLMStrategy separately:
-    from game_theory.llm_strategy import LLMStrategy
+Game theory multi-agent simulation package.
+LLMStrategy: from game_theory.llm_strategy import LLMStrategy
 """
 
 from .games import (
