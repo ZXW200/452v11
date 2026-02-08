@@ -1,19 +1,19 @@
 """
-博弈论 LLM 多智能体研究实验脚本 v16
-Game Theory LLM Multi-Agent Research Experiments
+博弈论 LLM 多智能体研究实验脚本 v17
+Game Theory LLM Multi-Agent Research Experiments v17
 
-实验列表 (使用 python research.py <exp_name> 运行):
-  exp1  - Pure vs Hybrid - LLM自己分析 vs 代码辅助
-  exp2  - 记忆视窗对比 - 5/10/20/全部历史
-  exp3  - 多LLM对比 - DeepSeek vs GPT vs Gemini
-  exp4  - Cheap Talk 三方对战 - 3个LLM Round-Robin 语言交流博弈
-  exp4b - Cheap Talk 一对一 - 指定双方LLM的语言交流博弈
-  exp5  - 群体动力学 (单Provider)
-  exp5b - 群体动力学 (多Provider)
-  exp6  - Baseline 对比 - LLM vs 经典策略
+实验列表 / Experiment list (run: python research.py <exp_name>):
+  exp1  - Pure vs Hybrid         LLM自己分析 vs 代码辅助
+  exp2  - Memory Window          记忆视窗对比 (5/10/20/全部)
+  exp3  - Multi-LLM              DeepSeek vs OpenAI vs Gemini
+  exp4  - Cheap Talk (3-way)     3个LLM Round-Robin 语言交流博弈
+  exp4b - Cheap Talk (1v1)       指定双方LLM的语言交流博弈
+  exp5  - Group Dynamics         群体动力学 (3 LLM + 8 经典策略)
+  exp5b - Group Dynamics Multi   群体动力学 多Provider (3 LLM + 8 经典策略)
+  exp6  - Baseline               LLM vs 9种经典策略
 
-所有实验默认遍历三种博弈: 囚徒困境 / 雪堆博弈 / 猎鹿博弈
-结果按 results/{时间戳}/{博弈类型}/ 分目录保存
+博弈类型 / Game types: 囚徒困境(PD) / 雪堆博弈(Snowdrift) / 猎鹿博弈(Stag Hunt)
+结果保存 / Results saved to: results/{timestamp}/{exp}/
 """
 
 import json
@@ -2466,47 +2466,47 @@ EXPERIMENT_ALIASES = {
 
 
 def print_usage():
-    """打印使用说明"""
+    """打印使用说明 / Print usage instructions"""
     print("""
-博弈论 LLM 研究实验脚本 v16
-==========================
+博弈论 LLM 研究实验脚本 v17
+Game Theory LLM Research Experiments v17
+==========================================
 
-用法:
+用法 / Usage:
   python research.py <experiment> [options]
 
-实验列表:
-  exp1          - 实验1: Pure vs Hybrid LLM
-  exp2          - 实验2: 记忆视窗对比
-  exp3          - 实验3: 多 LLM 对比
-  exp4          - 实验4: Cheap Talk 三方对战 (3 LLM Round-Robin)
-  exp4b         - 实验4b: Cheap Talk 一对一 (支持指定双方 provider)
-  exp5          - 实验5: 群体动力学（单 Provider）
-  exp5b         - 实验5b: 群体动力学（DeepSeek/OpenAI/Gemini 三模型）
-  exp6          - 实验6: Baseline 对比（DeepSeek/OpenAI/Gemini 三模型）
-  all           - 运行全部实验
+实验列表 / Experiments:
+  exp1          - Pure vs Hybrid LLM (LLM自己分析 vs 代码辅助)
+  exp2          - Memory Window (记忆视窗: 5/10/20/全部)
+  exp3          - Multi-LLM Comparison (DeepSeek/OpenAI/Gemini)
+  exp4          - Cheap Talk 3-way (3 LLM Round-Robin 语言交流)
+  exp4b         - Cheap Talk 1v1 (指定双方 provider)
+  exp5          - Group Dynamics (3 LLM + 8 经典策略 = 11 agents)
+  exp5b         - Group Dynamics Multi (3 LLM + 8 经典策略 = 11 agents)
+  exp6          - Baseline (LLM vs 9 种经典策略)
+  all           - Run all experiments (运行全部)
 
-旧命令兼容:
+旧命令兼容 / Legacy aliases:
   pure_hybrid -> exp1,  window -> exp2,  multi_llm -> exp3
   cheap_talk -> exp4,   cheap_talk_1v1 -> exp4b
   group_single -> exp5, group/group_multi -> exp5b, baseline -> exp6
 
-选项:
-  --provider    LLM 提供商 (deepseek/openai/gemini)    [默认: deepseek]
-  --provider1   exp4b 实验的 Player1 模型              [默认: 同 --provider]
-  --provider2   exp4b 实验的 Player2 模型              [默认: 同 --provider]
-  --repeats     重复次数                               [默认: 3]
-  --rounds      每次轮数                               [默认: 20]
-  --games       指定博弈 (pd/snowdrift/stag_hunt/all) [默认: all]
-  --n_agents    群体动力学实验的智能体数量             [默认: 10]
+选项 / Options:
+  --provider    LLM provider (deepseek/openai/gemini)  [default: deepseek]
+  --provider1   exp4b Player1 model                    [default: --provider]
+  --provider2   exp4b Player2 model                    [default: --provider]
+  --repeats     Number of repeats (重复次数)            [default: 3]
+  --rounds      Rounds per game (每次轮数)              [default: 20]
+  --games       Game type (pd/snowdrift/stag_hunt/all) [default: all]
 
-帮助:
-  -h, --help    显示此帮助信息
+帮助 / Help:
+  -h, --help    Show this help message
 
-示例:
+示例 / Examples:
   python research.py exp1
-  python research.py exp4                          # 3 LLM 三方对战
+  python research.py exp4                          # 3 LLM round-robin
   python research.py exp4b --provider1 openai --provider2 gemini
-  python research.py exp5b --rounds 30 --n_agents 15
+  python research.py exp5b --rounds 30
   python research.py all --provider openai --repeats 5
 """)
 

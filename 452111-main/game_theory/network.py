@@ -1,12 +1,12 @@
 """
-交互网络模块 - 定义agents之间的交互结构
-Interaction Network Module - Define interaction structures between agents
+Network topologies for agent interactions.
+Optional dependency: networkx (for SmallWorld and ScaleFree).
 """
 import random
 from typing import List, Tuple, Dict, Optional
 from abc import ABC, abstractmethod
 
-# 尝试导入networkx，如果没有则使用简单实现
+# Optional networkx import
 try:
     import networkx as nx
     HAS_NETWORKX = True
@@ -16,18 +16,9 @@ except ImportError:
 
 
 class InteractionNetwork(ABC):
-    """
-    交互网络基类
-    Base Interaction Network Class
-    
-    定义agents之间的交互拓扑结构
-    """
-    
+    """Base class for interaction networks."""
+
     def __init__(self, agents: List[str]):
-        """
-        Args:
-            agents: Agent名称列表
-        """
         self.agents = agents
         self.n = len(agents)
         self._edges: List[Tuple[str, str]] = []
@@ -35,48 +26,34 @@ class InteractionNetwork(ABC):
     
     @abstractmethod
     def _build_network(self):
-        """构建网络结构"""
+        """Build the network edges."""
         pass
     
     def _add_edge(self, a1: str, a2: str):
-        """添加边（无向）"""
+        """Add undirected edge."""
         if a1 != a2 and a2 not in self._adjacency[a1]:
             self._edges.append((a1, a2))
             self._adjacency[a1].append(a2)
             self._adjacency[a2].append(a1)
     
     def get_neighbors(self, agent: str) -> List[str]:
-        """
-        获取agent的邻居（可交互对象）
-        Get agent's neighbors (interaction partners)
-        """
+        """Get agent's neighbors."""
         return self._adjacency.get(agent, [])
     
     def get_all_edges(self) -> List[Tuple[str, str]]:
-        """
-        获取所有边（交互对）
-        Get all edges (interaction pairs)
-        """
+        """Get all edges."""
         return self._edges.copy()
     
     def get_interaction_pairs(self) -> List[Tuple[str, str]]:
-        """
-        获取本轮的交互对
-        Get interaction pairs for current round
-        
-        默认返回所有边，子类可覆盖实现更复杂的配对逻辑
-        """
+        """Get interaction pairs for this round. Subclasses can override."""
         return self.get_all_edges()
     
     def get_degree(self, agent: str) -> int:
-        """获取agent的度（邻居数量）"""
+        """Get number of neighbors."""
         return len(self._adjacency.get(agent, []))
     
     def get_network_stats(self) -> Dict:
-        """
-        获取网络统计信息
-        Get network statistics
-        """
+        """Get network statistics."""
         degrees = [self.get_degree(a) for a in self.agents]
         return {
             "num_agents": self.n,
@@ -87,7 +64,7 @@ class InteractionNetwork(ABC):
         }
     
     def to_dict(self) -> Dict:
-        """导出为字典格式（用于保存）"""
+        """Export as dictionary."""
         return {
             "type": self.__class__.__name__,
             "agents": self.agents,
@@ -96,15 +73,10 @@ class InteractionNetwork(ABC):
         }
 
 
-# ============================================================
-# 网络拓扑实现 / Network Topology Implementations
-# ============================================================
+# --- Network Implementations ---
 
 class FullyConnectedNetwork(InteractionNetwork):
-    """
-    完全连接网络 - 所有agent两两可交互
-    Fully Connected Network - All agents can interact with each other
-    """
+    """All agents interact with each other."""
     name = "Fully Connected"
     
     def __init__(self, agents: List[str]):
@@ -118,10 +90,7 @@ class FullyConnectedNetwork(InteractionNetwork):
 
 
 class RingNetwork(InteractionNetwork):
-    """
-    环形网络 - 每个agent只与相邻两个交互
-    Ring Network - Each agent interacts with two neighbors
-    """
+    """Each agent interacts with two neighbors in a ring."""
     name = "Ring"
     
     def __init__(self, agents: List[str]):
@@ -134,10 +103,7 @@ class RingNetwork(InteractionNetwork):
 
 
 class GridNetwork(InteractionNetwork):
-    """
-    网格网络 - 2D网格结构
-    Grid Network - 2D grid structure
-    """
+    """2D grid structure."""
     name = "Grid"
     
     def __init__(self, agents: List[str], cols: int = None):
@@ -150,20 +116,15 @@ class GridNetwork(InteractionNetwork):
         for i, agent in enumerate(self.agents):
             row, col = i // self.cols, i % self.cols
             
-            # 右邻居
             if col < self.cols - 1 and i + 1 < self.n:
                 self._add_edge(agent, self.agents[i + 1])
-            
-            # 下邻居
+
             if row < self.rows - 1 and i + self.cols < self.n:
                 self._add_edge(agent, self.agents[i + self.cols])
 
 
 class StarNetwork(InteractionNetwork):
-    """
-    星形网络 - 一个中心节点连接所有其他节点
-    Star Network - One central node connected to all others
-    """
+    """One center node connected to all others."""
     name = "Star"
     
     def __init__(self, agents: List[str], center: str = None):
@@ -178,21 +139,10 @@ class StarNetwork(InteractionNetwork):
 
 
 class SmallWorldNetwork(InteractionNetwork):
-    """
-    小世界网络 - 基于Watts-Strogatz模型
-    Small World Network - Based on Watts-Strogatz model
-    
-    特点：高聚类系数 + 短平均路径长度
-    """
+    """Watts-Strogatz small world network."""
     name = "Small World"
     
     def __init__(self, agents: List[str], k: int = 4, p: float = 0.3):
-        """
-        Args:
-            agents: Agent列表
-            k: 每个节点的邻居数（必须是偶数）
-            p: 重连概率
-        """
         self.k = min(k, len(agents) - 1)
         if self.k % 2 == 1:
             self.k -= 1
@@ -202,22 +152,18 @@ class SmallWorldNetwork(InteractionNetwork):
     
     def _build_network(self):
         if HAS_NETWORKX:
-            # 使用networkx生成
             G = nx.watts_strogatz_graph(self.n, self.k, self.p)
             for i, j in G.edges():
                 self._add_edge(self.agents[i], self.agents[j])
         else:
-            # 简单实现：先建环形，再随机重连
-            # 1. 建立规则环形网络
+            # Fallback: ring + random rewiring
             for i in range(self.n):
                 for j in range(1, self.k // 2 + 1):
                     self._add_edge(self.agents[i], self.agents[(i + j) % self.n])
             
-            # 2. 随机重连
             new_edges = []
             for a1, a2 in self._edges:
                 if random.random() < self.p:
-                    # 随机选择新的端点
                     candidates = [a for a in self.agents if a != a1 and a not in self._adjacency[a1]]
                     if candidates:
                         new_a2 = random.choice(candidates)
@@ -227,7 +173,6 @@ class SmallWorldNetwork(InteractionNetwork):
                 else:
                     new_edges.append((a1, a2))
             
-            # 重建
             self._edges = []
             self._adjacency = {a: [] for a in self.agents}
             for a1, a2 in new_edges:
@@ -235,20 +180,10 @@ class SmallWorldNetwork(InteractionNetwork):
 
 
 class ScaleFreeNetwork(InteractionNetwork):
-    """
-    无标度网络 - 基于Barabási-Albert模型
-    Scale-Free Network - Based on Barabási-Albert model
-    
-    特点：度分布服从幂律，存在少数高度连接的hub节点
-    """
+    """Barabasi-Albert preferential attachment network."""
     name = "Scale Free"
     
     def __init__(self, agents: List[str], m: int = 2):
-        """
-        Args:
-            agents: Agent列表
-            m: 每个新节点连接的边数
-        """
         self.m = min(m, len(agents) - 1)
         super().__init__(agents)
         self._build_network()
@@ -259,16 +194,15 @@ class ScaleFreeNetwork(InteractionNetwork):
             for i, j in G.edges():
                 self._add_edge(self.agents[i], self.agents[j])
         else:
-            # 简单实现：优先连接
-            # 初始完全图
+            # Fallback: preferential attachment
             for i in range(self.m + 1):
                 for j in range(i + 1, self.m + 1):
                     self._add_edge(self.agents[i], self.agents[j])
             
-            # 逐步添加节点
+            # Add nodes one by one
             for i in range(self.m + 1, self.n):
                 new_agent = self.agents[i]
-                # 计算连接概率（基于度）
+                # Connect based on degree
                 total_degree = sum(self.get_degree(a) for a in self.agents[:i])
                 if total_degree == 0:
                     targets = random.sample(self.agents[:i], min(self.m, i))
@@ -279,7 +213,7 @@ class ScaleFreeNetwork(InteractionNetwork):
                     for _ in range(min(self.m, i)):
                         if not candidates:
                             break
-                        # 加权随机选择
+                        # Weighted random selection
                         r = random.random()
                         cumsum = 0
                         for idx, (cand, prob) in enumerate(zip(candidates, probs)):
@@ -288,7 +222,7 @@ class ScaleFreeNetwork(InteractionNetwork):
                                 targets.append(cand)
                                 candidates.pop(idx)
                                 probs.pop(idx)
-                                # 重新归一化
+                                # Renormalize
                                 if probs:
                                     s = sum(probs)
                                     probs = [p/s for p in probs]
@@ -299,18 +233,10 @@ class ScaleFreeNetwork(InteractionNetwork):
 
 
 class RandomNetwork(InteractionNetwork):
-    """
-    随机网络 - Erdős-Rényi模型
-    Random Network - Erdős-Rényi model
-    """
+    """Erdos-Renyi random network."""
     name = "Random (ER)"
     
     def __init__(self, agents: List[str], p: float = 0.3):
-        """
-        Args:
-            agents: Agent列表
-            p: 任意两个节点连接的概率
-        """
         self.p = p
         super().__init__(agents)
         self._build_network()
@@ -322,9 +248,7 @@ class RandomNetwork(InteractionNetwork):
                     self._add_edge(a1, a2)
 
 
-# ============================================================
-# 网络注册表 / Network Registry
-# ============================================================
+# --- Network Registry ---
 
 NETWORK_REGISTRY = {
     "fully_connected": FullyConnectedNetwork,
@@ -338,18 +262,7 @@ NETWORK_REGISTRY = {
 
 
 def create_network(network_type: str, agents: List[str], **kwargs) -> InteractionNetwork:
-    """
-    工厂函数：根据类型创建网络
-    Factory function: Create network by type
-    
-    Args:
-        network_type: 网络类型名称
-        agents: Agent列表
-        **kwargs: 网络参数
-    
-    Returns:
-        网络实例
-    """
+    """Create a network by type name."""
     if network_type not in NETWORK_REGISTRY:
         raise ValueError(f"Unknown network type: {network_type}. "
                         f"Available: {list(NETWORK_REGISTRY.keys())}")
@@ -357,15 +270,10 @@ def create_network(network_type: str, agents: List[str], **kwargs) -> Interactio
     return NETWORK_REGISTRY[network_type](agents, **kwargs)
 
 
-# ============================================================
-# 可视化（如果有matplotlib）/ Visualization
-# ============================================================
+# --- Visualization ---
 
 def visualize_network(network: InteractionNetwork, output_path: str = None):
-    """
-    可视化网络结构
-    Visualize network structure
-    """
+    """Visualize network structure using matplotlib."""
     try:
         import matplotlib.pyplot as plt
     except ImportError:

@@ -1,9 +1,6 @@
 """
-博弈论多智能体仿真模块
-Game Theory Multi-Agent Simulation Module
-
-注意: LLMStrategy 需要单独导入:
-    from game_theory.llm_strategy import LLMStrategy
+Game theory multi-agent simulation package.
+LLMStrategy: from game_theory.llm_strategy import LLMStrategy
 """
 
 from .games import (
@@ -55,4 +52,4 @@ from .simulation import (
     run_quick_experiment,
 )
 
-__version__ = "0.5.2"
+__version__ = "0.6.0"
