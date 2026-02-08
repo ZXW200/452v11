@@ -1,20 +1,18 @@
-"""
-博弈论 LLM 多智能体研究实验脚本 v17
-Game Theory LLM Multi-Agent Research Experiments v17
-
-实验列表 / Experiment list (run: python research.py <exp_name>):
-  exp1  - Pure vs Hybrid         LLM自己分析 vs 代码辅助
-  exp2  - Memory Window          记忆视窗对比 (5/10/20/全部)
-  exp3  - Multi-LLM              DeepSeek vs OpenAI vs Gemini
-  exp4  - Cheap Talk (3-way)     3个LLM Round-Robin 语言交流博弈
-  exp4b - Cheap Talk (1v1)       指定双方LLM的语言交流博弈
-  exp5  - Group Dynamics         群体动力学 (3 LLM + 8 经典策略)
-  exp5b - Group Dynamics Multi   群体动力学 多Provider (3 LLM + 8 经典策略)
-  exp6  - Baseline               LLM vs 9种经典策略
-
-博弈类型 / Game types: 囚徒困境(PD) / 雪堆博弈(Snowdrift) / 猎鹿博弈(Stag Hunt)
-结果保存 / Results saved to: results/{timestamp}/{exp}/
-"""
+# Game Theory LLM Multi-Agent Research Experiments v17
+# 博弈论 LLM 多智能体研究实验脚本 v17
+#
+# Experiment list (run: python research.py <exp_name>):
+#   exp1  - Pure vs Hybrid         LLM self-analysis vs code-assisted
+#   exp2  - Memory Window          5/10/20/full history comparison
+#   exp3  - Multi-LLM              DeepSeek vs OpenAI vs Gemini
+#   exp4  - Cheap Talk (3-way)     3 LLM Round-Robin with language communication
+#   exp4b - Cheap Talk (1v1)       Specify both LLMs for language communication
+#   exp5  - Group Dynamics         3 LLM + 8 classic strategies
+#   exp5b - Group Dynamics Multi   Multi-provider group dynamics
+#   exp6  - Baseline               LLM vs 9 classic strategies
+#
+# Game types: PD / Snowdrift / Stag Hunt
+# Results saved to: results/{timestamp}/{exp}/
 
 import json
 import os
@@ -22,18 +20,17 @@ import sys
 import csv
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')  # 必须在 import pyplot 之前！
+matplotlib.use('Agg')  # Must be before import pyplot / 必须在 import pyplot 之前
 import matplotlib.pyplot as plt
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 
 
-# 设置中文字体
+# Set Chinese font / 设置中文字体
 plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
-# 博弈论模块导入
+# Game theory module imports / 博弈论模块导入
 from game_theory.games import (
     PRISONERS_DILEMMA, SNOWDRIFT, STAG_HUNT,
     Action, get_payoff, GAME_REGISTRY
@@ -49,9 +46,7 @@ from game_theory.network import NETWORK_REGISTRY
 from game_theory.simulation import AgentState, GameSimulation
 
 
-# ============================================================
-# 全局配置
-# ============================================================
+# --- Global Config / 全局配置 ---
 GAME_NAMES_CN = {
     "prisoners_dilemma": "囚徒困境",
     "snowdrift": "雪堆博弈",
@@ -76,60 +71,38 @@ NETWORK_NAMES_EN = {
     "scale_free": "Scale Free",
 }
 
-# 默认实验参数
+# Default experiment parameters / 默认实验参数
 DEFAULT_CONFIG = {
-    "n_repeats": 3,      # 重复次数（论文建议30次）
-    "rounds": 20,        # 每次对局轮数
-    "provider": "deepseek",  # 默认LLM
+    "n_repeats": 3,      # Number of repeats (paper suggests 30) / 重复次数（论文建议30次）
+    "rounds": 20,        # Rounds per game / 每次对局轮数
+    "provider": "deepseek",  # Default LLM / 默认LLM
     "verbose": True,
 }
 
 
-# ============================================================
-# 结果保存管理
-# ============================================================
+# --- Result Manager / 结果保存管理 ---
 
+# Experiment result manager / 实验结果管理器
+# Directory: results/{timestamp}/{exp}/ with raw/, rounds/, stats/, figures/, anomalies/
 class ResultManager:
-    """
-    实验结果管理器
 
-    目录结构:
-    results/{timestamp}/
-    ├── config.json                 # 实验配置
-    ├── summary.json                # 全局汇总
-    └── {exp}/                      # 每个实验的独立目录
-        ├── raw/                    # 原始数据（每次trial的完整记录）
-        │   ├── pd/                 # 囚徒困境
-        │   ├── snowdrift/          # 雪堆博弈
-        │   ├── stag_hunt/          # 猎鹿博弈
-        │       └── {condition}_trial{N}.json
-        ├── rounds/                 # 轮次数据（统一CSV格式）
-        │   └── {game}_{condition}_rounds.csv
-        ├── stats/                  # 统计汇总
-        │   └── {exp}_summary.csv
-        ├── figures/                # 图表
-        │   └── {game}_{condition}.png
-        └── anomalies/              # 异常记录
-            └── anomalies.csv
-    """
-
-    def __init__(self, base_dir: str = "results"):
+    def __init__(self, base_dir="results"):
         self.base_dir = base_dir
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.root_dir = os.path.join(base_dir, self.timestamp)
         os.makedirs(self.root_dir, exist_ok=True)
 
-        # 缓存已创建的实验目录
+        # Cache created experiment directories / 缓存已创建的实验目录
         self._exp_dirs_created = set()
 
         print(f"Results dir: {self.root_dir}")
 
-    def _get_exp_dir(self, exp: str, subdir: str) -> str:
-        """获取实验特定的子目录，如 results/{timestamp}/{exp}/{subdir}"""
+    # Get experiment subdirectory / 获取实验子目录
+    def _get_exp_dir(self, exp, subdir):
         exp_dir = os.path.join(self.root_dir, exp)
         full_dir = os.path.join(exp_dir, subdir)
 
-        # 只在首次访问时创建目录
+        # Only create directories on first access / 只在首次访问时创建目录
         if exp not in self._exp_dirs_created:
             for d in ["raw", "rounds", "stats", "figures", "anomalies"]:
                 os.makedirs(os.path.join(exp_dir, d), exist_ok=True)
@@ -137,25 +110,25 @@ class ResultManager:
 
         return full_dir
 
-    def _get_raw_game_dir(self, exp: str, game: str) -> str:
-        """获取 raw 下的游戏子目录，如 results/{timestamp}/{exp}/raw/{game}"""
+    # Get raw game subdirectory / 获取raw下的游戏子目录
+    def _get_raw_game_dir(self, exp, game):
         raw_dir = self._get_exp_dir(exp, "raw")
         game_dir = os.path.join(raw_dir, game)
         os.makedirs(game_dir, exist_ok=True)
         return game_dir
 
-    def _extract_exp(self, experiment_name: str) -> str:
-        """从 experiment_name 中提取实验编号（如 exp1_pure_vs_hybrid -> exp1）"""
-        # 假设 experiment_name 以 expN_ 开头
+    # Extract experiment ID from name (e.g. exp1_pure_vs_hybrid -> exp1) / 从名称中提取实验编号
+    def _extract_exp(self, experiment_name):
+        # Assume experiment_name starts with expN_ / 假设以 expN_ 开头
         parts = experiment_name.split("_")
         if parts and parts[0].startswith("exp"):
             return parts[0]
         return experiment_name  # fallback
 
-    # ========== 新的统一保存接口 ==========
+    # --- Unified save interface / 统一保存接口 ---
 
-    def save_trial(self, exp: str, game: str, condition: str, trial: int, data: Dict) -> str:
-        """保存单次试验原始数据到 {exp}/raw/{game}/ 目录"""
+    # Save single trial raw data / 保存单次试验原始数据
+    def save_trial(self, exp, game, condition, trial, data):
         filename = f"{condition}_trial{trial}.json"
         filepath = os.path.join(self._get_raw_game_dir(exp, game), filename)
 
@@ -164,8 +137,8 @@ class ResultManager:
 
         return filepath
 
-    def save_rounds(self, exp: str, game: str, condition: str, records: List[Dict]) -> str:
-        """保存轮次记录到 {exp}/rounds/ 目录（CSV格式）"""
+    # Save round records to CSV / 保存轮次记录为CSV
+    def save_rounds(self, exp, game, condition, records):
         filename = f"{game}_{condition}_rounds.csv"
         filepath = os.path.join(self._get_exp_dir(exp, "rounds"), filename)
 
@@ -181,8 +154,8 @@ class ResultManager:
         print(f"  {exp} Rounds: {filepath}")
         return filepath
 
-    def save_stats(self, exp: str, game: str, condition: str, data: Dict) -> str:
-        """保存统计数据到 {exp}/stats/ 目录"""
+    # Save statistics data / 保存统计数据
+    def save_stats(self, exp, game, condition, data):
         filename = f"{game}_{condition}_stats.json"
         filepath = os.path.join(self._get_exp_dir(exp, "stats"), filename)
 
@@ -192,8 +165,8 @@ class ResultManager:
         print(f"  {exp} Stats: {filepath}")
         return filepath
 
-    def save_fig(self, exp: str, game: str, condition: str, fig: plt.Figure) -> str:
-        """保存图表到 {exp}/figures/ 目录"""
+    # Save figure to {exp}/figures/ / 保存图表
+    def save_fig(self, exp, game, condition, fig):
         filename = f"{game}_{condition}.png"
         filepath = os.path.join(self._get_exp_dir(exp, "figures"), filename)
 
@@ -203,8 +176,8 @@ class ResultManager:
         print(f"  {exp} Figure: {filepath}")
         return filepath
 
-    def save_anomaly(self, exp: str, records: List[Dict]) -> str:
-        """保存异常记录到 {exp}/anomalies/ 目录"""
+    # Save anomaly records / 保存异常记录
+    def save_anomaly(self, exp, records):
         filename = "anomalies.csv"
         filepath = os.path.join(self._get_exp_dir(exp, "anomalies"), filename)
 
@@ -220,14 +193,14 @@ class ResultManager:
         print(f"  {exp} Anomalies: {filepath}")
         return filepath
 
-    # ========== 兼容旧代码的方法（后续逐步替换） ==========
+    # --- Legacy compatible methods / 兼容旧代码的方法 ---
 
-    def get_game_dir(self, game_name: str) -> str:
-        """[兼容] 获取博弈类型目录 -> 返回 root_dir（不推荐使用）"""
+    # [Legacy] Get game directory / [兼容] 获取博弈类型目录
+    def get_game_dir(self, game_name):
         return self.root_dir
 
-    def save_json(self, game_name: str, experiment_name: str, data: Dict) -> str:
-        """[兼容] 保存 JSON 数据 -> 现在保存到 {exp}/raw/{game}/"""
+    # [Legacy] Save JSON data / [兼容] 保存JSON数据
+    def save_json(self, game_name, experiment_name, data):
         exp = self._extract_exp(experiment_name)
         filepath = os.path.join(self._get_raw_game_dir(exp, game_name), f"{experiment_name}.json")
 
@@ -237,8 +210,8 @@ class ResultManager:
         print(f"  {exp} Saved: {filepath}")
         return filepath
 
-    def save_figure(self, game_name: str, experiment_name: str, fig: plt.Figure) -> str:
-        """[兼容] 保存图表 -> 现在保存到 {exp}/figures/"""
+    # [Legacy] Save figure / [兼容] 保存图表
+    def save_figure(self, game_name, experiment_name, fig):
         exp = self._extract_exp(experiment_name)
         filepath = os.path.join(self._get_exp_dir(exp, "figures"), f"{experiment_name}.png")
 
@@ -248,22 +221,22 @@ class ResultManager:
         print(f"  {exp} Saved: {filepath}")
         return filepath
 
-    def save_config(self, config: Dict):
-        """保存实验配置"""
+    # Save experiment config / 保存实验配置
+    def save_config(self, config):
         filepath = os.path.join(self.root_dir, "config.json")
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
         print(f"Config saved: {filepath}")
 
-    def save_summary(self, all_results: Dict):
-        """保存汇总报告到根目录"""
+    # Save summary report to root directory / 保存汇总报告到根目录
+    def save_summary(self, all_results):
         filepath = os.path.join(self.root_dir, "summary.json")
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(all_results, f, ensure_ascii=False, indent=2, default=str)
         print(f"Summary saved: {filepath}")
 
-    def save_transcript(self, game_name: str, experiment_name: str, content: str) -> str:
-        """[兼容] 保存 transcript -> 现在保存到 {exp}/raw/{game}/"""
+    # [Legacy] Save transcript / [兼容] 保存transcript
+    def save_transcript(self, game_name, experiment_name, content):
         exp = self._extract_exp(experiment_name)
         filepath = os.path.join(self._get_raw_game_dir(exp, game_name), f"{experiment_name}_transcript.txt")
 
@@ -273,8 +246,8 @@ class ResultManager:
         print(f"  {exp} Saved: {filepath}")
         return filepath
 
-    def save_detail(self, experiment_name: str, game_name: str, provider: str, trial: int, rounds: int, data: Dict) -> str:
-        """[兼容] 保存单次实验详细数据 -> 现在保存到 {exp}/raw/{game}/"""
+    # [Legacy] Save single trial detail data / [兼容] 保存单次实验详细数据
+    def save_detail(self, experiment_name, game_name, provider, trial, rounds, data):
         exp = self._extract_exp(experiment_name)
         filename = f"{experiment_name}_{provider}_trial{trial}.json"
         filepath = os.path.join(self._get_raw_game_dir(exp, game_name), filename)
@@ -284,8 +257,8 @@ class ResultManager:
 
         return filepath
 
-    def save_round_records(self, experiment_name: str, game_name: str, provider: str, records: List[Dict]) -> str:
-        """[兼容] 保存每轮记录 -> 现在保存 CSV 到 {exp}/rounds/"""
+    # [Legacy] Save round records to CSV / [兼容] 保存每轮记录为CSV
+    def save_round_records(self, experiment_name, game_name, provider, records):
         exp = self._extract_exp(experiment_name)
         filename = f"{experiment_name}_{game_name}_{provider}_rounds.csv"
         filepath = os.path.join(self._get_exp_dir(exp, "rounds"), filename)
@@ -302,8 +275,8 @@ class ResultManager:
         print(f"  {exp} Rounds: {filepath}")
         return filepath
 
-    def save_rounds_csv(self, experiment_name: str, game_name: str, network_name: str, records: List[Dict]) -> str:
-        """[兼容] 保存每轮记录为 CSV -> 现在保存到 {exp}/rounds/"""
+    # [Legacy] Save round records as CSV / [兼容] 保存每轮记录为CSV
+    def save_rounds_csv(self, experiment_name, game_name, network_name, records):
         exp = self._extract_exp(experiment_name)
         filename = f"{experiment_name}_{game_name}_{network_name}_rounds.csv"
         filepath = os.path.join(self._get_exp_dir(exp, "rounds"), filename)
@@ -320,8 +293,8 @@ class ResultManager:
         print(f"  {exp} Rounds: {filepath}")
         return filepath
 
-    def save_experiment_summary(self, experiment_name: str, data: Dict) -> str:
-        """保存实验汇总到 {exp}/stats/ 目录 (CSV 格式)"""
+    # Save experiment summary to {exp}/stats/ as CSV / 保存实验汇总为CSV
+    def save_experiment_summary(self, experiment_name, data):
         exp = self._extract_exp(experiment_name)
         filepath = os.path.join(self._get_exp_dir(exp, "stats"), f"{experiment_name}.csv")
 
@@ -336,8 +309,8 @@ class ResultManager:
         print(f"  {exp} Summary: {filepath}")
         return filepath
 
-    def _flatten_summary_to_rows(self, experiment_name: str, data: Dict) -> List[Dict]:
-        """将嵌套的实验数据展平为 CSV 行"""
+    # Flatten nested experiment data into CSV rows / 将嵌套实验数据展平为CSV行
+    def _flatten_summary_to_rows(self, experiment_name, data):
         rows = []
 
         for game_name, game_data in data.items():
@@ -347,7 +320,7 @@ class ResultManager:
                         row = self._make_summary_row(experiment_name, game_name, key, stats)
                         rows.append(row)
                     elif isinstance(stats, dict) and "payoffs" in stats:
-                        # group_dynamics 结构: payoffs/coop_rates/rankings
+                        # group_dynamics structure: payoffs/coop_rates/rankings
                         rows.extend(self._make_group_summary_rows(experiment_name, game_name, key, stats))
                     elif isinstance(stats, dict):
                         for sub_key, sub_stats in stats.items():
@@ -357,8 +330,8 @@ class ResultManager:
 
         return rows
 
-    def _make_group_summary_rows(self, experiment: str, game: str, network: str, stats: Dict) -> List[Dict]:
-        """生成 group_dynamics 的 summary 行"""
+    # Generate group_dynamics summary rows / 生成group_dynamics汇总行
+    def _make_group_summary_rows(self, experiment, game, network, stats):
         rows = []
         payoffs = stats.get("payoffs", {})
         coop_rates = stats.get("coop_rates", {})
@@ -375,8 +348,8 @@ class ResultManager:
 
         return rows
 
-    def _make_summary_row(self, experiment: str, game: str, condition: str, stats: Dict) -> Dict:
-        """生成单行 summary 数据"""
+    # Generate a single summary row / 生成单行汇总数据
+    def _make_summary_row(self, experiment, game, condition, stats):
         payoff = stats.get("payoff", {})
         coop = stats.get("coop_rate", {})
 
@@ -392,12 +365,10 @@ class ResultManager:
         }
 
 
-# ============================================================
-# 统计工具
-# ============================================================
+# --- Statistics Utilities / 统计工具 ---
 
-def compute_statistics(values: List[float]) -> Dict:
-    """计算统计量 + 95% 置信区间"""
+# Compute statistics + 95% CI / 计算统计量 + 95%置信区间
+def compute_statistics(values):
     if not values:
         return {"mean": 0, "std": 0, "ci_low": 0, "ci_high": 0, "n": 0}
 
@@ -422,49 +393,33 @@ def compute_statistics(values: List[float]) -> Dict:
     }
 
 
-def compute_cooperation_rate(history: List[Action]) -> float:
-    """计算合作率"""
+# Compute cooperation rate / 计算合作率
+def compute_cooperation_rate(history):
     if not history:
         return 0.0
     cooperations = sum(1 for a in history if a == Action.COOPERATE)
     return cooperations / len(history)
 
 
+# Record anomalous cooperation rates / 记录合作率异常的实验数据
 class AnomalyRecorder:
-    """
-    记录合作率异常的实验数据
-    当合作率不为 100% 时自动记录
-    """
 
     def __init__(self):
         self.records = []
 
+    # Check cooperation rate and record if below threshold / 检查合作率，低于阈值则记录
     def check_and_record(
         self,
-        coop_rate: float,
-        experiment: str,
-        game: str,
-        trial: int,
-        rounds: int,
-        payoff: float,
-        provider: str = "",
-        condition: str = "",
-        threshold: float = 1.0,
+        coop_rate,
+        experiment,
+        game,
+        trial,
+        rounds,
+        payoff,
+        provider="",
+        condition="",
+        threshold=1.0,
     ):
-        """
-        检查合作率，如果低于阈值则记录
-
-        Args:
-            coop_rate: 合作率 (0.0 - 1.0)
-            experiment: 实验名称 (exp1, exp2, ...)
-            game: 博弈类型
-            trial: 第几次试验
-            rounds: 轮数
-            payoff: 得分
-            provider: LLM 提供商
-            condition: 实验条件 (如 window=5, mode=pure 等)
-            threshold: 阈值，低于此值才记录 (默认 1.0 即 100%)
-        """
         if coop_rate < threshold:
             record = {
                 "experiment": experiment,
@@ -479,16 +434,16 @@ class AnomalyRecorder:
             }
             self.records.append(record)
 
-    def get_records(self) -> List[Dict]:
-        """获取所有异常记录"""
+    # Get all anomaly records / 获取所有异常记录
+    def get_records(self):
         return self.records
 
+    # Clear records / 清空记录
     def clear(self):
-        """清空记录"""
         self.records = []
 
-    def save_to_file(self, result_manager: 'ResultManager', experiment_name: str):
-        """保存异常记录到 {exp}/anomalies/ 目录"""
+    # Save anomaly records to file / 保存异常记录到文件
+    def save_to_file(self, result_manager, experiment_name):
         if not self.records:
             return None
 
@@ -505,27 +460,17 @@ class AnomalyRecorder:
         return filepath
 
 
-# 全局异常记录器
+# Global anomaly recorder / 全局异常记录器
 anomaly_recorder = AnomalyRecorder()
 
 
-def make_history_tuples(my_history: List[Action], opp_history: List[Action]) -> List[Tuple[Action, Action]]:
-    """
-    将两个独立的历史列表转换为元组列表
-    用于兼容传统策略的接口
-
-    Args:
-        my_history: 我的动作历史
-        opp_history: 对手动作历史
-
-    Returns:
-        [(我的动作, 对手动作), ...]
-    """
+# Convert two history lists into tuple list / 将两个历史列表转换为元组列表
+def make_history_tuples(my_history, opp_history):
     return list(zip(my_history, opp_history))
 
 
-def print_separator(title: str = "", char: str = "=", width: int = 60):
-    """打印分隔线"""
+# Print separator line / 打印分隔线
+def print_separator(title="", char="=", width=60):
     if title:
         padding = (width - len(title) - 2) // 2
         print(f"\n{char * padding} {title} {char * padding}")
@@ -533,30 +478,24 @@ def print_separator(title: str = "", char: str = "=", width: int = 60):
         print(char * width)
 
 
-def print_game_header(game_name: str):
-    """打印博弈类型标题"""
-    cn_name = GAME_NAMES_CN.get(game_name, game_name)
+# Print game type header / 打印博弈类型标题
+def print_game_header(game_name):
+    en_name = GAME_NAMES_EN.get(game_name, game_name)
     print(f"\n{'─' * 50}")
-    print(f"  Game: {cn_name}")
+    print(f"  Game: {en_name}")
     print(f"{'─' * 50}")
 
 
-# ============================================================
-# 可视化工具
-# ============================================================
+# --- Visualization Utilities / 可视化工具 ---
 
-def plot_cooperation_comparison(
-    data: Dict[str, Dict],
-    title: str,
-    game_name: str = "",
-) -> plt.Figure:
-    """绘制得分和合作率对比图"""
+# Plot payoff and cooperation rate comparison / 绘制得分和合作率对比图
+def plot_cooperation_comparison(data, title, game_name=""):
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
     labels = list(data.keys())
 
-    # 得分图
+    # Payoff chart / 得分图
     means = [d["payoff"]["mean"] for d in data.values()]
     stds = [d["payoff"]["std"] for d in data.values()]
     x = np.arange(len(labels))
@@ -570,7 +509,7 @@ def plot_cooperation_comparison(
         ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1,
                 f'{mean:.1f}', ha='center', va='bottom', fontsize=9)
 
-    # 合作率图
+    # Cooperation rate chart / 合作率图
     coop_means = [d["coop_rate"]["mean"] * 100 for d in data.values()]
     coop_stds = [d["coop_rate"]["std"] * 100 for d in data.values()]
     bars2 = ax2.bar(x, coop_means, yerr=coop_stds, capsize=5, color='forestgreen', alpha=0.8)
@@ -589,31 +528,29 @@ def plot_cooperation_comparison(
     return fig
 
 
-# ============================================================
-# 实验基类
-# ============================================================
+# --- Base Experiment / 实验基类 ---
 
+# Base experiment class / 实验基类
 class BaseExperiment:
-    """实验基类"""
     name = "base"
     description = "Base Experiment"
 
-    def __init__(self, result_manager: ResultManager, **kwargs):
+    def __init__(self, result_manager, **kwargs):
         self.result_manager = result_manager
         self.provider = kwargs.get("provider", DEFAULT_CONFIG["provider"])
         self.n_repeats = kwargs.get("n_repeats", DEFAULT_CONFIG["n_repeats"])
         self.rounds = kwargs.get("rounds", DEFAULT_CONFIG["rounds"])
         self.games = kwargs.get("games") or list(GAME_REGISTRY.keys())
 
-    def run(self) -> Dict:
+    def run(self):
         raise NotImplementedError
 
-    def _print_summary(self, results: Dict):
+    def _print_summary(self, results):
         raise NotImplementedError
 
-    def _record_anomaly(self, coop_rate: float, game: str, trial: int, payoff: float,
-                        provider: str = "", condition: str = ""):
-        """记录异常合作率（合作率 < 100% 时自动记录）"""
+    # Record anomalous cooperation rate / 记录异常合作率
+    def _record_anomaly(self, coop_rate, game, trial, payoff,
+                        provider="", condition=""):
         anomaly_recorder.check_and_record(
             coop_rate=coop_rate,
             experiment=self.name,
@@ -625,25 +562,23 @@ class BaseExperiment:
             condition=condition,
         )
 
+    # Save anomaly records and clear / 保存异常记录并清空
     def _save_anomalies(self):
-        """保存异常记录并清空"""
         anomaly_recorder.save_to_file(self.result_manager, self.name)
         anomaly_recorder.clear()
 
 
-# ============================================================
-# 实验1: Pure vs Hybrid
-# ============================================================
+# --- Exp1: Pure vs Hybrid / 实验1: Pure vs Hybrid ---
 
+# Exp1: Pure vs Hybrid LLM / 实验1: 纯LLM vs 混合模式
 class Exp1_PureVsHybrid(BaseExperiment):
-    """实验1: Pure vs Hybrid LLM"""
     name = "exp1"
     description = "Pure vs Hybrid LLM"
 
-    def run(self) -> Dict:
-        print_separator(f"实验1: {self.description}")
-        print("Pure:   LLM 自己从历史分析对手")
-        print("Hybrid: 代码分析好告诉 LLM")
+    def run(self):
+        print_separator(f"Exp1: {self.description}")
+        print("Pure: LLM analyzes opponent from history")
+        print("Hybrid: code pre-processes stats for LLM")
         print(f"Provider: {self.provider} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
@@ -701,7 +636,7 @@ class Exp1_PureVsHybrid(BaseExperiment):
                         results[mode].append(llm_payoff)
                         coop_rates[mode].append(coop_rate)
 
-                        # 记录异常合作率
+                        # Record anomalous cooperation rate / 记录异常合作率
                         self._record_anomaly(coop_rate, game_name, trial + 1, llm_payoff, condition=f"mode={mode}")
 
                         if hasattr(llm_strategy, 'get_parse_quality'):
@@ -759,13 +694,13 @@ class Exp1_PureVsHybrid(BaseExperiment):
         self._save_anomalies()
         return all_results
 
-    def _print_summary(self, results: Dict):
-        print_separator("汇总: Pure vs Hybrid")
+    def _print_summary(self, results):
+        print_separator("Summary: Pure vs Hybrid")
         print(f"{'Game':<12} {'Pure Payoff':<18} {'Hybrid Payoff':<18} {'Pure Coop':<14} {'Hybrid Coop':<14}")
         print("-" * 76)
 
         for game_name, stats in results.items():
-            cn_name = GAME_NAMES_CN.get(game_name, game_name)
+            en_name = GAME_NAMES_EN.get(game_name, game_name)
 
             pure_pay = stats["pure"]["payoff"]
             hybrid_pay = stats["hybrid"]["payoff"]
@@ -777,27 +712,25 @@ class Exp1_PureVsHybrid(BaseExperiment):
             pure_coop_str = f"{pure_coop['mean']:.1%}"
             hybrid_coop_str = f"{hybrid_coop['mean']:.1%}"
 
-            print(f"{cn_name:<12} {pure_str:<18} {hybrid_str:<18} {pure_coop_str:<14} {hybrid_coop_str:<14}")
+            print(f"{en_name:<12} {pure_str:<18} {hybrid_str:<18} {pure_coop_str:<14} {hybrid_coop_str:<14}")
 
 
-# ============================================================
-# 实验2: 记忆视窗对比
-# ============================================================
+# --- Exp2: Memory Window / 实验2: 记忆视窗对比 ---
 
+# Exp2: Memory Window Comparison / 实验2: 记忆视窗对比
 class Exp2_MemoryWindow(BaseExperiment):
-    """实验2: 记忆视窗对比"""
     name = "exp2"
-    description = "记忆视窗对比"
+    description = "Memory Window Comparison"
 
-    def __init__(self, result_manager: ResultManager, **kwargs):
+    def __init__(self, result_manager, **kwargs):
         super().__init__(result_manager, **kwargs)
         self.windows = kwargs.get("windows", [5, 10, 20, None])
         if self.rounds < 30:
-            self.rounds = 30  # 记忆视窗实验至少30轮
+            self.rounds = 30  # Memory window experiment needs at least 30 rounds / 记忆视窗实验至少30轮
 
-    def run(self) -> Dict:
-        print_separator(f"实验2: {self.description}")
-        print(f"测试不同历史记忆长度: {self.windows}")
+    def run(self):
+        print_separator(f"Exp2: {self.description}")
+        print(f"Testing different history memory lengths: {self.windows}")
         print(f"Provider: {self.provider} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
@@ -810,7 +743,7 @@ class Exp2_MemoryWindow(BaseExperiment):
             all_round_records = []
 
             for window in self.windows:
-                window_label = str(window) if window else "全部"
+                window_label = str(window) if window else "all"
                 print(f"\n  Window: {window_label}")
 
                 payoffs = []
@@ -859,7 +792,7 @@ class Exp2_MemoryWindow(BaseExperiment):
                         payoffs.append(llm_payoff)
                         coop_rates.append(coop_rate)
 
-                        # 记录异常合作率
+                        # Record anomalous cooperation rate / 记录异常合作率
                         self._record_anomaly(coop_rate, game_name, trial + 1, llm_payoff, condition=f"window={window_label}")
 
                         print(f"Payoff: {llm_payoff:.1f}, Coop rate: {coop_rate:.1%}")
@@ -878,7 +811,7 @@ class Exp2_MemoryWindow(BaseExperiment):
             self.result_manager.save_json(game_name, "exp2_memory_window", window_results)
             self.result_manager.save_round_records("exp2", game_name, self.provider, all_round_records)
 
-            fig = plot_cooperation_comparison(window_results, "记忆视窗对比", game_name)
+            fig = plot_cooperation_comparison(window_results, "Memory Window Comparison", game_name)
             self.result_manager.save_figure(game_name, "exp2_memory_window", fig)
 
         self._print_summary(all_results)
@@ -886,12 +819,12 @@ class Exp2_MemoryWindow(BaseExperiment):
         self._save_anomalies()
         return all_results
 
-    def _print_summary(self, results: Dict):
-        print_separator("汇总: 记忆视窗对比")
+    def _print_summary(self, results):
+        print_separator("Summary: Memory Window Comparison")
 
         for game_name, window_stats in results.items():
-            cn_name = GAME_NAMES_CN.get(game_name, game_name)
-            print(f"\n{cn_name}:")
+            en_name = GAME_NAMES_EN.get(game_name, game_name)
+            print(f"\n{en_name}:")
             print(f"  {'Window':<8} {'Payoff':<18} {'Coop Rate':<12}")
             print(f"  {'-' * 38}")
 
@@ -903,27 +836,24 @@ class Exp2_MemoryWindow(BaseExperiment):
                 print(f"  {window:<8} {pay_str:<18} {coop_str:<12}")
 
 
-# ============================================================
-# 实验3: 多 LLM 对比
-# ============================================================
+# --- Exp3: Multi-LLM Comparison / 实验3: 多LLM对比 ---
 
+# Exp3: Multi-LLM Comparison / 实验3: 多LLM对比
 class Exp3_MultiLLM(BaseExperiment):
-    """实验3: 多 LLM 对比"""
     name = "exp3"
-    description = "多 LLM 对比"
+    description = "Multi-LLM Comparison"
 
-    def __init__(self, result_manager: ResultManager, **kwargs):
+    def __init__(self, result_manager, **kwargs):
         super().__init__(result_manager, **kwargs)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
         self.providers = list(raw_providers)
         if not self.providers:
             raise ValueError("Exp3 requires at least one provider")
 
-    def run(self) -> Dict:
-        print_separator(f"实验3: {self.description}")
-        # 显示时应用 normalize
+    def run(self):
+        print_separator(f"Exp3: {self.description}")
         display_providers = list(self.providers)
-        print(f"对比 LLM: {display_providers}")
+        print(f"Comparing LLMs: {display_providers}")
         print(f"Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
@@ -984,7 +914,7 @@ class Exp3_MultiLLM(BaseExperiment):
                         payoffs.append(llm_payoff)
                         coop_rates.append(coop_rate)
 
-                        # 记录异常合作率
+                        # Record anomalous cooperation rate / 记录异常合作率
                         self._record_anomaly(coop_rate, game_name, trial + 1, llm_payoff, provider=display_name)
 
                         print(f"Payoff: {llm_payoff:.1f}, Coop rate: {coop_rate:.1%}")
@@ -993,7 +923,7 @@ class Exp3_MultiLLM(BaseExperiment):
                         print(f"Error: {e}")
                         continue
 
-                # 使用 display_name 作为 key
+                # Use display_name as key
                 provider_results[display_name] = {
                     "payoff": compute_statistics(payoffs),
                     "coop_rate": compute_statistics(coop_rates),
@@ -1004,7 +934,7 @@ class Exp3_MultiLLM(BaseExperiment):
             self.result_manager.save_json(game_name, "exp3_multi_llm", provider_results)
             self.result_manager.save_round_records("exp3", game_name, "all", all_round_records)
 
-            fig = plot_cooperation_comparison(provider_results, "多 LLM 对比", game_name)
+            fig = plot_cooperation_comparison(provider_results, "Multi-LLM Comparison", game_name)
             self.result_manager.save_figure(game_name, "exp3_multi_llm", fig)
 
         self._print_summary(all_results)
@@ -1012,12 +942,12 @@ class Exp3_MultiLLM(BaseExperiment):
         self._save_anomalies()
         return all_results
 
-    def _print_summary(self, results: Dict):
-        print_separator("汇总: 多 LLM 对比")
+    def _print_summary(self, results):
+        print_separator("Summary: Multi-LLM Comparison")
 
         for game_name, provider_stats in results.items():
-            cn_name = GAME_NAMES_CN.get(game_name, game_name)
-            print(f"\n{cn_name}:")
+            en_name = GAME_NAMES_EN.get(game_name, game_name)
+            print(f"\n{en_name}:")
             print(f"  {'LLM':<12} {'Payoff':<18} {'Coop Rate':<12}")
             print(f"  {'-' * 42}")
 
@@ -1035,26 +965,23 @@ class Exp3_MultiLLM(BaseExperiment):
                 print(f"  {provider:<12} {pay_str:<18} {coop_str:<12}")
 
 
-# ============================================================
-# 实验4: Cheap Talk 三方对战 (3 LLM Round-Robin)
-# ============================================================
+# --- Exp4: Cheap Talk 3-way / 实验4: Cheap Talk 三方对战 ---
 
+# Exp4: Cheap Talk 3-way (3 LLM Round-Robin) / 实验4: Cheap Talk三方对战
 class Exp4_CheapTalk3LLM(BaseExperiment):
-    """实验4: Cheap Talk 三方对战"""
     name = "exp4"
-    description = "Cheap Talk 三方对战 (3 LLM)"
+    description = "Cheap Talk 3-way (3 LLM)"
 
-    def __init__(self, result_manager: ResultManager, **kwargs):
+    def __init__(self, result_manager, **kwargs):
         super().__init__(result_manager, **kwargs)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
         self.providers = list(raw_providers)
         if len(self.providers) < 2:
             raise ValueError("Exp4 requires at least 2 providers for pairwise comparison")
 
-    def run(self) -> Dict:
-        print_separator(f"实验4: {self.description}")
-        print("对比: 无交流 vs 有语言交流 (Round-Robin)")
-        # 显示时应用 normalize
+    def run(self):
+        print_separator(f"Exp4: {self.description}")
+        print("Compare: No Talk vs Cheap Talk (Round-Robin)")
         display_providers = list(self.providers)
         print(f"Providers: {display_providers} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
@@ -1186,7 +1113,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                             coop_rates[mode][display_name].append(coop_rate)
                             coop_rate_dict[display_name] = coop_rate
 
-                            # 记录异常合作率
+                            # Record anomalous cooperation rate / 记录异常合作率
                             self._record_anomaly(coop_rate, game_name, trial + 1, total_payoffs[display_name], provider=display_name, condition=f"mode={mode}")
 
                             if use_cheap_talk and messages[display_name]:
@@ -1247,23 +1174,23 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
         self._save_anomalies()
         return all_results
 
-    def _generate_transcript(self, game_name: str, detailed_trials: Dict) -> str:
-        """生成3 LLM Cheap Talk 交互记录"""
-        cn_name = GAME_NAMES_CN.get(game_name, game_name)
+    # Generate 3-LLM Cheap Talk interaction transcript / 生成3 LLM Cheap Talk交互记录
+    def _generate_transcript(self, game_name, detailed_trials):
+        en_name = GAME_NAMES_EN.get(game_name, game_name)
         display_providers = list(self.providers)
 
         lines = []
         lines.append("=" * 70)
-        lines.append(f"CHEAP TALK 三方对战实验记录 - {cn_name}")
+        lines.append(f"CHEAP TALK 3-WAY EXPERIMENT TRANSCRIPT - {en_name}")
         lines.append(f"Providers: {', '.join(display_providers)}")
-        lines.append(f"对战模式: 3 LLM Round-Robin")
+        lines.append(f"Mode: 3 LLM Round-Robin")
         lines.append("=" * 70)
         lines.append("")
 
         for mode in ["no_talk", "cheap_talk"]:
-            mode_name = "无交流模式 (No Talk)" if mode == "no_talk" else "有交流模式 (Cheap Talk)"
+            mode_name = "No Talk Mode" if mode == "no_talk" else "Cheap Talk Mode"
             lines.append("-" * 70)
-            lines.append(f"【{mode_name}】")
+            lines.append(f"[{mode_name}]")
             lines.append("-" * 70)
 
             for trial_data in detailed_trials[mode]:
@@ -1274,9 +1201,9 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
 
                 lines.append("")
                 lines.append(f">>> Trial {trial_num}")
-                lines.append(f"    社会总收益: {total_social:.1f}")
+                lines.append(f"    Total social payoff: {total_social:.1f}")
                 for p in display_providers:
-                    lines.append(f"    {p}: 得分={payoffs.get(p, 0):.1f}, 合作率={coop_rates.get(p, 0):.1%}")
+                    lines.append(f"    {p}: payoff={payoffs.get(p, 0):.1f}, coop_rate={coop_rates.get(p, 0):.1%}")
                 lines.append("")
 
                 for rd in trial_data.get("rounds", []):
@@ -1296,21 +1223,21 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                             lines.append(f"      {p1} says: \"{p1_msg}\"")
                         if p2_msg:
                             lines.append(f"      {p2} says: \"{p2_msg}\"")
-                        p1_symbol = "合作" if p1_action == "COOPERATE" else "背叛"
-                        p2_symbol = "合作" if p2_action == "COOPERATE" else "背叛"
-                        lines.append(f"      {p1}: {p1_symbol} | {p2}: {p2_symbol} | 得分: {p1_payoff}/{p2_payoff}")
+                        p1_symbol = "C" if p1_action == "COOPERATE" else "D"
+                        p2_symbol = "C" if p2_action == "COOPERATE" else "D"
+                        lines.append(f"      {p1}: {p1_symbol} | {p2}: {p2_symbol} | payoff: {p1_payoff}/{p2_payoff}")
                     lines.append("")
 
             lines.append("")
 
         lines.append("=" * 70)
-        lines.append("记录结束")
+        lines.append("END OF TRANSCRIPT")
         lines.append("=" * 70)
 
         return "\n".join(lines)
 
-    def _plot_results(self, game_results: Dict, game_name: str) -> Optional[plt.Figure]:
-        """绘制3 LLM Cheap Talk 对比图"""
+    # Plot 3-LLM Cheap Talk comparison / 绘制3 LLM Cheap Talk对比图
+    def _plot_results(self, game_results, game_name):
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
         provider_colors = {
@@ -1355,24 +1282,24 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
         ax2.set_ylim(0, 105)
         ax2.legend()
 
-        game_cn = GAME_NAMES_CN.get(game_name, game_name)
-        fig.suptitle(f"Cheap Talk 3-LLM Round-Robin - {game_cn}", fontsize=14)
+        game_en = GAME_NAMES_EN.get(game_name, game_name)
+        fig.suptitle(f"Cheap Talk 3-LLM Round-Robin - {game_en}", fontsize=14)
         plt.tight_layout()
         return fig
 
-    def _print_summary(self, results: Dict):
-        """打印3 LLM Cheap Talk 汇总"""
-        print_separator("汇总: Cheap Talk 三方对战 (3 LLM)")
+    # Print 3-LLM Cheap Talk summary / 打印3 LLM Cheap Talk汇总
+    def _print_summary(self, results):
+        print_separator("Summary: Cheap Talk 3-way (3 LLM)")
         display_providers = list(self.providers)
 
         for game_name, stats in results.items():
-            cn_name = GAME_NAMES_CN.get(game_name, game_name)
-            print(f"\n{cn_name}:")
+            en_name = GAME_NAMES_EN.get(game_name, game_name)
+            print(f"\n{en_name}:")
 
             for mode in ["no_talk", "cheap_talk"]:
                 mode_name = "No Talk" if mode == "no_talk" else "Cheap Talk"
                 social = stats[mode]["social_payoff"]
-                print(f"\n  [{mode_name}] 社会总收益: {social['mean']:.1f} ± {social['std']:.1f}")
+                print(f"\n  [{mode_name}] Total social payoff: {social['mean']:.1f} +/- {social['std']:.1f}")
 
                 for provider in display_providers:
                     p_stats = stats[mode]["providers"][provider]
@@ -1382,32 +1309,30 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
 
                     if mode == "cheap_talk" and "promise_kept" in p_stats:
                         pk = p_stats["promise_kept"]
-                        print(f"      承诺遵守: {pk['mean']:.1%}")
+                        print(f"      Promise kept: {pk['mean']:.1%}")
 
 
-# ============================================================
-# 实验4b: Cheap Talk 一对一 (1v1)
-# ============================================================
+# --- Exp4b: Cheap Talk 1v1 / 实验4b: Cheap Talk一对一 ---
 
+# Exp4b: Cheap Talk 1v1 / 实验4b: Cheap Talk一对一
 class Exp4b_CheapTalk1v1(BaseExperiment):
-    """实验4b: Cheap Talk 一对一"""
     name = "exp4b"
-    description = "Cheap Talk 一对一 (1v1)"
+    description = "Cheap Talk 1v1"
 
-    def __init__(self, result_manager: ResultManager, **kwargs):
+    def __init__(self, result_manager, **kwargs):
         super().__init__(result_manager, **kwargs)
         self.provider1 = kwargs.get("provider1", self.provider)
         self.provider2 = kwargs.get("provider2", self.provider)
 
-    def run(self) -> Dict:
-        print_separator(f"实验4b: {self.description}")
-        print("对比: 无交流 vs 有语言交流 (LLM vs LLM)")
+    def run(self):
+        print_separator(f"Exp4b: {self.description}")
+        print("Compare: No Talk vs Cheap Talk (LLM vs LLM)")
         display_p1 = self.provider1
         display_p2 = self.provider2
         if display_p1 == display_p2:
             print(f"Provider: {display_p1} vs {display_p2} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
         else:
-            print(f"Provider: {display_p1} vs {display_p2} (跨模型对战) | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
+            print(f"Provider: {display_p1} vs {display_p2} (cross-model) | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
 
@@ -1513,7 +1438,7 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
                         coop_rates[mode]["player1"].append(coop_rate_1)
                         coop_rates[mode]["player2"].append(coop_rate_2)
 
-                        # 记录异常合作率
+                        # Record anomalous cooperation rate / 记录异常合作率
                         self._record_anomaly(coop_rate_1, game_name, trial + 1, total_payoff_1, provider=display_p1, condition=f"mode={mode},player=1")
                         self._record_anomaly(coop_rate_2, game_name, trial + 1, total_payoff_2, provider=display_p2, condition=f"mode={mode},player=2")
 
@@ -1601,7 +1526,7 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
                     "payoff": mode_stats["total_payoff"],
                     "coop_rate": {"mean": avg_coop_mean, "std": avg_coop_std},
                 }
-            fig = plot_cooperation_comparison(plot_data, "Cheap Talk 一对一 (1v1)", game_name)
+            fig = plot_cooperation_comparison(plot_data, "Cheap Talk 1v1", game_name)
             self.result_manager.save_figure(game_name, "exp4b_cheap_talk_1v1", fig)
 
         self._print_summary(all_results)
@@ -1609,24 +1534,24 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
         self._save_anomalies()
         return all_results
 
-    def _generate_transcript(self, game_name: str, detailed_trials: Dict) -> str:
-        """生成一对一 Cheap Talk 交互记录"""
-        cn_name = GAME_NAMES_CN.get(game_name, game_name)
+    # Generate 1v1 Cheap Talk interaction transcript / 生成一对一Cheap Talk交互记录
+    def _generate_transcript(self, game_name, detailed_trials):
+        en_name = GAME_NAMES_EN.get(game_name, game_name)
         display_p1 = self.provider1
         display_p2 = self.provider2
 
         lines = []
         lines.append("=" * 70)
-        lines.append(f"CHEAP TALK 一对一实验记录 - {cn_name}")
+        lines.append(f"CHEAP TALK 1V1 EXPERIMENT TRANSCRIPT - {en_name}")
         lines.append(f"Player1: {display_p1} | Player2: {display_p2}")
-        lines.append(f"对战模式: LLM vs LLM (双向交流)")
+        lines.append(f"Mode: LLM vs LLM (bidirectional communication)")
         lines.append("=" * 70)
         lines.append("")
 
         for mode in ["no_talk", "cheap_talk"]:
-            mode_name = "无交流模式 (No Talk)" if mode == "no_talk" else "有交流模式 (Cheap Talk)"
+            mode_name = "No Talk Mode" if mode == "no_talk" else "Cheap Talk Mode"
             lines.append("-" * 70)
-            lines.append(f"【{mode_name}】")
+            lines.append(f"[{mode_name}]")
             lines.append("-" * 70)
 
             for trial_data in detailed_trials[mode]:
@@ -1639,13 +1564,13 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
 
                 lines.append("")
                 lines.append(f">>> Trial {trial_num}")
-                lines.append(f"    社会总收益: {total_payoff:.1f} | P1得分: {p1_payoff:.1f} | P2得分: {p2_payoff:.1f}")
-                lines.append(f"    P1合作率: {p1_coop:.1%} | P2合作率: {p2_coop:.1%}")
+                lines.append(f"    Total payoff: {total_payoff:.1f} | P1 payoff: {p1_payoff:.1f} | P2 payoff: {p2_payoff:.1f}")
+                lines.append(f"    P1 coop rate: {p1_coop:.1%} | P2 coop rate: {p2_coop:.1%}")
 
                 if "player1_promise_keeping" in trial_data:
-                    lines.append(f"    P1承诺遵守率: {trial_data['player1_promise_keeping']:.1%}")
+                    lines.append(f"    P1 promise kept: {trial_data['player1_promise_keeping']:.1%}")
                 if "player2_promise_keeping" in trial_data:
-                    lines.append(f"    P2承诺遵守率: {trial_data['player2_promise_keeping']:.1%}")
+                    lines.append(f"    P2 promise kept: {trial_data['player2_promise_keeping']:.1%}")
 
                 lines.append("")
 
@@ -1665,28 +1590,28 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
                     if p2_msg:
                         lines.append(f"    P2 says: \"{p2_msg}\"")
 
-                    p1_symbol = "合作" if p1_action == "COOPERATE" else "背叛"
-                    p2_symbol = "合作" if p2_action == "COOPERATE" else "背叛"
+                    p1_symbol = "C" if p1_action == "COOPERATE" else "D"
+                    p2_symbol = "C" if p2_action == "COOPERATE" else "D"
 
                     lines.append(f"    P1: {p1_symbol} | P2: {p2_symbol}")
-                    lines.append(f"    得分: P1={p1_payoff_rd}, P2={p2_payoff_rd}")
+                    lines.append(f"    Payoff: P1={p1_payoff_rd}, P2={p2_payoff_rd}")
                     lines.append("")
 
             lines.append("")
 
         lines.append("=" * 70)
-        lines.append("记录结束")
+        lines.append("END OF TRANSCRIPT")
         lines.append("=" * 70)
 
         return "\n".join(lines)
 
-    def _print_summary(self, results: Dict):
-        """打印一对一 Cheap Talk 汇总"""
-        print_separator("汇总: Cheap Talk 一对一 (1v1)")
+    # Print 1v1 Cheap Talk summary / 打印1v1 Cheap Talk汇总
+    def _print_summary(self, results):
+        print_separator("Summary: Cheap Talk 1v1")
 
         for game_name, stats in results.items():
-            cn_name = GAME_NAMES_CN.get(game_name, game_name)
-            print(f"\n{cn_name}:")
+            en_name = GAME_NAMES_EN.get(game_name, game_name)
+            print(f"\n{en_name}:")
 
             no_talk = stats["no_talk"]
             cheap_talk = stats["cheap_talk"]
@@ -1705,9 +1630,8 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
                 print(f"  P2 Promise kept: {cheap_talk['player2_promise_kept']['mean']:.1%}")
 
 
-# 辅助函数（保留在class外部供其他地方调用）
-def _analyze_promise_keeping(messages: List[str], actions: List[Action]) -> float:
-    """分析承诺遵守率"""
+# Analyze promise keeping rate / 分析承诺遵守率
+def _analyze_promise_keeping(messages, actions):
     if not messages or not actions:
         return 0.0
 
@@ -1715,9 +1639,9 @@ def _analyze_promise_keeping(messages: List[str], actions: List[Action]) -> floa
     promise_count = 0
 
     cooperation_keywords = [
-        # 中文
+        # Chinese keywords / 中文关键词
         "合作", "信任", "一起", "承诺", "同意", "友好", "互惠", "双赢", "携手",
-        # 英文
+        # English keywords / 英文关键词
         "cooperate", "trust", "together", "promise", "agree", "mutual", "collaborate", "friendly",
     ]
 
@@ -1730,16 +1654,14 @@ def _analyze_promise_keeping(messages: List[str], actions: List[Action]) -> floa
     return kept_count / promise_count if promise_count > 0 else 1.0
 
 
-# ============================================================
-# 实验5: 群体动力学
-# ============================================================
+# --- Exp5: Group Dynamics / 实验5: 群体动力学 ---
 
+# Exp5: Group Dynamics / 实验5: 群体动力学
 class Exp5_GroupDynamics(BaseExperiment):
-    """实验5: 群体动力学"""
     name = "exp5"
-    description = "群体动力学"
+    description = "Group Dynamics"
 
-    def __init__(self, result_manager: ResultManager, **kwargs):
+    def __init__(self, result_manager, **kwargs):
         super().__init__(result_manager, **kwargs)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
         self.providers = list(raw_providers)
@@ -1747,11 +1669,11 @@ class Exp5_GroupDynamics(BaseExperiment):
             raise ValueError("Exp5 requires at least one provider")
         self.networks = kwargs.get("networks", ["fully_connected", "small_world"])
 
-    def run(self) -> Dict:
-        print_separator(f"实验5: {self.description}")
+    def run(self):
+        print_separator(f"Exp5: {self.description}")
         n_total = len(self.providers) + 8  # LLM + 8 Classic
-        print(f"Agent数量: {n_total} ({len(self.providers)} LLM + 8 Classic) | Providers: {self.providers}")
-        print(f"网络: {self.networks} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
+        print(f"Agents: {n_total} ({len(self.providers)} LLM + 8 Classic) | Providers: {self.providers}")
+        print(f"Networks: {self.networks} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
 
@@ -1763,14 +1685,14 @@ class Exp5_GroupDynamics(BaseExperiment):
             all_round_records = []
 
             for network_name in self.networks:
-                network_cn = NETWORK_NAMES_CN.get(network_name, network_name)
-                print(f"\n  网络: {network_cn}")
+                network_en = NETWORK_NAMES_EN.get(network_name, network_name)
+                print(f"\n  Network: {network_en}")
 
                 try:
                     all_trials_payoffs = defaultdict(list)
                     all_trials_coop_rates = defaultdict(list)
 
-                    # 策略映射表：匿名名字 -> 真实策略名（在循环外保持一致）
+                    # Strategy map: anonymous name -> real strategy name / 策略映射表
                     strategy_map = {}
 
                     for i in range(self.n_repeats):
@@ -1778,10 +1700,10 @@ class Exp5_GroupDynamics(BaseExperiment):
 
                         strategies = []
 
-                        # 固定分配: 3 LLM (每个 provider 1个) + 8 经典策略 = 11 agents
+                        # Fixed: 3 LLM (1 per provider) + 8 classic = 11 agents
                         agent_idx = 1
 
-                        # LLM agents: 使用匿名名字，每个 provider 1个
+                        # LLM agents: anonymous names, 1 per provider
                         for provider in self.providers:
                             anon_name = f"Player_{agent_idx}"
                             real_name = f"LLM_{provider}"
@@ -1792,7 +1714,7 @@ class Exp5_GroupDynamics(BaseExperiment):
                             ))
                             agent_idx += 1
 
-                        # Classic agents: 8 个不同策略，使用匿名名字
+                        # Classic agents: 8 different strategies with anonymous names
                         classic_classes = [
                             TitForTat, TitForTwoTats, GenerousTitForTat, Extort2,
                             Pavlov, GrimTrigger, AlwaysDefect, RandomStrategy
@@ -1840,14 +1762,14 @@ class Exp5_GroupDynamics(BaseExperiment):
                             all_trials_coop_rates[aid].append(rate)
                             trial_coop_rates[aid] = rate
 
-                        # 记录所有 agent 的每轮数据（包括经典策略）
+                        # Record all agent round data / 记录所有agent的每轮数据
                         for aid, agent in agents.items():
                             if agent.game_history:
-                                # 获取 LLM 响应（如果有）
+                                # Get LLM responses if available / 获取LLM响应
                                 responses = getattr(agent.strategy, 'raw_responses', [])
                                 for r_idx, hist in enumerate(agent.game_history):
                                     llm_response = responses[r_idx] if r_idx < len(responses) else ""
-                                    # 转换匿名名字为真实策略名
+                                    # Convert anonymous name to real strategy name / 转换匿名名字为真实策略名
                                     real_agent_name = strategy_map.get(aid, aid)
                                     real_opponent_name = strategy_map.get(hist.get("opponent", ""), hist.get("opponent", ""))
                                     all_round_records.append({
@@ -1869,7 +1791,7 @@ class Exp5_GroupDynamics(BaseExperiment):
                     final_payoffs = {k: np.mean(v) for k, v in all_trials_payoffs.items()}
                     coop_rates = {k: np.mean(v) for k, v in all_trials_coop_rates.items()}
 
-                    # 将匿名名字转换为真实策略名用于结果输出
+                    # Convert anonymous names to real strategy names for output / 转换匿名名字为真实策略名
                     real_payoffs = {strategy_map.get(k, k): v for k, v in final_payoffs.items()}
                     real_coop_rates = {strategy_map.get(k, k): v for k, v in coop_rates.items()}
 
@@ -1877,7 +1799,7 @@ class Exp5_GroupDynamics(BaseExperiment):
                         "payoffs": real_payoffs,
                         "coop_rates": real_coop_rates,
                         "rankings": sorted(real_payoffs.items(), key=lambda x: x[1], reverse=True),
-                        "strategy_map": strategy_map,  # 保存映射表供参考
+                        "strategy_map": strategy_map,
                     }
 
                     print(f"    Avg ranking (Top 5):")
@@ -1895,7 +1817,7 @@ class Exp5_GroupDynamics(BaseExperiment):
             all_results[game_name] = network_results
             self.result_manager.save_json(game_name, "exp5_group_dynamics", network_results)
 
-            # 按网络类型分别保存每轮记录为 CSV
+            # Save round records by network type / 按网络类型保存每轮记录
             for net_name in self.networks:
                 net_records = [r for r in all_round_records if r["network"] == net_name]
                 if net_records:
@@ -1910,12 +1832,12 @@ class Exp5_GroupDynamics(BaseExperiment):
         return all_results
 
 
+# Exp5b: Multi-Provider Group Dynamics / 实验5b: 多Provider群体动力学
 class Exp5b_GroupDynamicsMulti(BaseExperiment):
-    """实验5b: 多 Provider 群体动力学"""
     name = "exp5b"
-    description = "多 Provider 群体动力学"
+    description = "Multi-Provider Group Dynamics"
 
-    def __init__(self, result_manager: ResultManager, **kwargs):
+    def __init__(self, result_manager, **kwargs):
         super().__init__(result_manager, **kwargs)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
         self.providers = list(raw_providers)
@@ -1923,12 +1845,12 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
             raise ValueError("Exp5b requires at least one provider")
         self.networks = kwargs.get("networks", ["fully_connected", "small_world"])
 
-    def run(self) -> Dict:
-        print_separator(f"实验5b: {self.description}")
+    def run(self):
+        print_separator(f"Exp5b: {self.description}")
         display_providers = list(self.providers)
         n_total = len(self.providers) + 8  # 3 LLM + 8 Classic
-        print(f"Agent数量: {n_total} ({len(self.providers)} LLM + 8 Classic) | Providers: {display_providers}")
-        print(f"网络: {self.networks} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
+        print(f"Agents: {n_total} ({len(self.providers)} LLM + 8 Classic) | Providers: {display_providers}")
+        print(f"Networks: {self.networks} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
 
@@ -1940,14 +1862,14 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
             all_round_records = []
 
             for network_name in self.networks:
-                network_cn = NETWORK_NAMES_CN.get(network_name, network_name)
-                print(f"\n  网络: {network_cn}")
+                network_en = NETWORK_NAMES_EN.get(network_name, network_name)
+                print(f"\n  Network: {network_en}")
 
                 try:
                     all_trials_payoffs = defaultdict(list)
                     all_trials_coop_rates = defaultdict(list)
 
-                    # 策略映射表：匿名名字 -> 真实策略名
+                    # Strategy map: anonymous name -> real strategy name / 策略映射表
                     strategy_map = {}
 
                     for i in range(self.n_repeats):
@@ -1955,11 +1877,11 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
 
                         strategies = []
 
-                        # 固定分配: 3 LLM (每个 provider 1个) + 8 经典策略 = 11 agents
-                        n_llm_total = len(self.providers)  # 每个 provider 1个 LLM
-                        n_classic = 8  # 固定 8 个经典策略
+                        # Fixed: 3 LLM (1 per provider) + 8 classic = 11 agents
+                        n_llm_total = len(self.providers)
+                        n_classic = 8
 
-                        # LLM agents: 使用匿名名字，每个 provider 1个
+                        # LLM agents: anonymous names, 1 per provider
                         agent_idx = 1
                         for provider in self.providers:
                             display_name = provider
@@ -1972,7 +1894,7 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                             ))
                             agent_idx += 1
 
-                        # Classic agents: 8 个不同策略，使用匿名名字
+                        # Classic agents: 8 different strategies with anonymous names
                         classic_classes = [
                             TitForTat, TitForTwoTats, GenerousTitForTat, Extort2,
                             Pavlov, GrimTrigger, AlwaysDefect, RandomStrategy
@@ -2024,14 +1946,14 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                             if hasattr(agent.strategy, 'raw_responses'):
                                 llm_responses[aid] = agent.strategy.raw_responses.copy()
 
-                        # 记录所有 agent 的每轮数据（包括经典策略）
+                        # Record all agent round data / 记录所有agent的每轮数据
                         for aid, agent in agents.items():
                             if agent.game_history:
-                                # 获取 LLM 响应（如果有）
+                                # Get LLM responses if available / 获取LLM响应
                                 responses = getattr(agent.strategy, 'raw_responses', [])
                                 for r_idx, hist in enumerate(agent.game_history):
                                     llm_response = responses[r_idx] if r_idx < len(responses) else ""
-                                    # 转换匿名名字为真实策略名
+                                    # Convert anonymous name to real strategy name / 转换匿名名字为真实策略名
                                     real_agent_name = strategy_map.get(aid, aid)
                                     real_opponent_name = strategy_map.get(hist.get("opponent", ""), hist.get("opponent", ""))
                                     all_round_records.append({
@@ -2067,7 +1989,7 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                     final_payoffs = {k: np.mean(v) for k, v in all_trials_payoffs.items()}
                     coop_rates = {k: np.mean(v) for k, v in all_trials_coop_rates.items()}
 
-                    # 将匿名名字转换为真实策略名用于结果输出
+                    # Convert anonymous names to real strategy names for output / 转换匿名名字为真实策略名
                     real_payoffs = {strategy_map.get(k, k): v for k, v in final_payoffs.items()}
                     real_coop_rates = {strategy_map.get(k, k): v for k, v in coop_rates.items()}
 
@@ -2080,7 +2002,7 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                         "rankings": sorted(real_payoffs.items(), key=lambda x: x[1], reverse=True),
                         "llm_comparison": llm_results,
                         "traditional_comparison": traditional_results,
-                        "strategy_map": strategy_map,  # 保存映射表供参考
+                        "strategy_map": strategy_map,
                     }
 
                     print(f"    LLM Avg ranking (Top 5):")
@@ -2098,7 +2020,7 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
             all_results[game_name] = network_results
             self.result_manager.save_json(game_name, "exp5b_group_dynamics_multi", network_results)
 
-            # 按网络类型分别保存每轮记录为 CSV
+            # Save round records by network type / 按网络类型保存每轮记录
             for net_name in self.networks:
                 net_records = [r for r in all_round_records if r["network"] == net_name]
                 if net_records:
@@ -2113,8 +2035,8 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
         return all_results
 
 
-def _plot_multi_provider_comparison(network_results: Dict, game_name: str, providers: List[str]) -> Optional[plt.Figure]:
-    """绘制多 Provider 对比图"""
+# Plot multi-provider comparison / 绘制多Provider对比图
+def _plot_multi_provider_comparison(network_results, game_name, providers):
 
     valid_networks = [n for n in network_results if "error" not in network_results[n]]
     if not valid_networks:
@@ -2125,11 +2047,11 @@ def _plot_multi_provider_comparison(network_results: Dict, game_name: str, provi
     if n_networks == 1:
         axes = [axes]
 
-    # 为不同 provider 设置颜色
+    # Provider colors
     provider_colors = {
-        "deepseek": "#4CAF50",  # 绿色
-        "openai": "#2196F3",    # 蓝色
-        "gemini": "#FF9800",    # 橙色
+        "deepseek": "#4CAF50",
+        "openai": "#2196F3",
+        "gemini": "#FF9800",
     }
 
     for ax, network_name in zip(axes, valid_networks):
@@ -2140,11 +2062,11 @@ def _plot_multi_provider_comparison(network_results: Dict, game_name: str, provi
         names = [r[0] for r in rankings]
         payoffs = [r[1] for r in rankings]
 
-        # 设置颜色 - 从 agent 名称中提取 provider
+        # Set colors - extract provider from agent name
         colors = []
         for name in names:
             if name.startswith("LLM_"):
-                # 从 LLM_gemini_1 这样的名称中提取 provider
+                # Extract provider from name like LLM_gemini_1
                 parts = name.replace("LLM_", "").rsplit("_", 1)
                 if len(parts) >= 1:
                     provider_name = parts[0]
@@ -2152,7 +2074,7 @@ def _plot_multi_provider_comparison(network_results: Dict, game_name: str, provi
                 else:
                     colors.append("#9C27B0")
             else:
-                colors.append("#757575")  # 灰色表示传统策略
+                colors.append("#757575")  # Gray for classic strategies
 
         bars = ax.barh(range(len(names)), payoffs, color=colors)
         ax.set_yticks(range(len(names)))
@@ -2161,12 +2083,12 @@ def _plot_multi_provider_comparison(network_results: Dict, game_name: str, provi
         ax.set_title(f"{NETWORK_NAMES_EN.get(network_name, network_name)}")
         ax.invert_yaxis()
 
-        # 在柱子上显示合作率
+        # Show cooperation rate on bars
         for i, (name, payoff) in enumerate(zip(names, payoffs)):
             coop = coop_rates.get(name, 0)
             ax.text(payoff + 0.5, i, f"{coop:.0%}", va='center', fontsize=8)
 
-    # 添加图例 - providers 已经是 display 名称
+    # Add legend
     legend_elements = [
         plt.Rectangle((0,0), 1, 1, facecolor=provider_colors.get(p, "#9C27B0"), label=f"LLM_{p}")
         for p in providers
@@ -2181,8 +2103,8 @@ def _plot_multi_provider_comparison(network_results: Dict, game_name: str, provi
     return fig
 
 
-def _plot_group_rankings(network_results: Dict, game_name: str) -> Optional[plt.Figure]:
-    """绘制群体动力学排名图"""
+# Plot group dynamics rankings / 绘制群体动力学排名图
+def _plot_group_rankings(network_results, game_name):
 
     valid_networks = [n for n in network_results if "error" not in network_results[n]]
     if not valid_networks:
@@ -2213,14 +2135,12 @@ def _plot_group_rankings(network_results: Dict, game_name: str) -> Optional[plt.
     return fig
 
 
-# ============================================================
-# 实验6: Baseline 对比
-# ============================================================
+# --- Exp6: Baseline Comparison / 实验6: Baseline对比 ---
 
+# Exp6: Baseline Comparison / 实验6: Baseline对比
 class Exp6_Baseline(BaseExperiment):
-    """实验6: Baseline 对比"""
     name = "exp6"
-    description = "Baseline 对比"
+    description = "Baseline Comparison"
 
     BASELINES = {
         "TitForTat": TitForTat,
@@ -2234,16 +2154,16 @@ class Exp6_Baseline(BaseExperiment):
         "Random": RandomStrategy,
     }
 
-    def __init__(self, result_manager: ResultManager, **kwargs):
+    def __init__(self, result_manager, **kwargs):
         super().__init__(result_manager, **kwargs)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
         self.providers = list(raw_providers)
 
-    def run(self) -> Dict:
-        print_separator(f"实验6: {self.description}")
+    def run(self):
+        print_separator(f"Exp6: {self.description}")
         display_providers = list(self.providers)
         print(f"LLM Providers: {display_providers}")
-        print(f"LLM vs 经典策略: {list(self.BASELINES.keys())}")
+        print(f"LLM vs Classic Strategies: {list(self.BASELINES.keys())}")
         print(f"Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
@@ -2310,7 +2230,7 @@ class Exp6_Baseline(BaseExperiment):
                             payoffs.append(llm_payoff)
                             coop_rates.append(coop_rate)
 
-                            # 记录异常合作率
+                            # Record anomalous cooperation rate / 记录异常合作率
                             self._record_anomaly(coop_rate, game_name, trial + 1, llm_payoff, provider=display_name, condition=f"vs_{baseline_name}")
 
                             detail_data = {
@@ -2356,13 +2276,8 @@ class Exp6_Baseline(BaseExperiment):
         return all_results
 
 
-def _plot_baseline_multi_provider(
-    game_results: Dict,
-    game_name: str,
-    providers: List[str],
-    baselines: Dict
-) -> Optional[plt.Figure]:
-    """绘制多 Provider Baseline 对比图"""
+# Plot multi-provider baseline comparison / 绘制多Provider Baseline对比图
+def _plot_baseline_multi_provider(game_results, game_name, providers, baselines):
 
     n_providers = len(providers)
     n_baselines = len(baselines)
@@ -2371,7 +2286,7 @@ def _plot_baseline_multi_provider(
     if n_providers == 1:
         axes = [axes]
 
-    # 为不同 provider 设置颜色
+    # Provider colors
     provider_colors = {
         "deepseek": "#4CAF50",
         "openai": "#2196F3",
@@ -2407,13 +2322,13 @@ def _plot_baseline_multi_provider(
     return fig
 
 
-def _print_baseline_summary_multi_provider(results: Dict, providers: List[str]):
-    """打印多 Provider Baseline 对比汇总"""
-    print_separator("汇总: LLM vs Baselines (多模型)")
+# Print multi-provider baseline summary / 打印多Provider Baseline对比汇总
+def _print_baseline_summary_multi_provider(results, providers):
+    print_separator("Summary: LLM vs Baselines (Multi-Model)")
 
     for game_name, provider_stats in results.items():
-        cn_name = GAME_NAMES_CN.get(game_name, game_name)
-        print(f"\n{cn_name}:")
+        en_name = GAME_NAMES_EN.get(game_name, game_name)
+        print(f"\n{en_name}:")
 
         for provider in providers:
             if provider not in provider_stats:
@@ -2432,13 +2347,7 @@ def _print_baseline_summary_multi_provider(results: Dict, providers: List[str]):
                 print(f"    {baseline:<16} {pay_str:<18} {coop_str:<12}")
 
 
-# ============================================================
-# 主函数
-# ============================================================
-
-# ============================================================
-# 实验注册表
-# ============================================================
+# --- Experiment Registry / 实验注册表 ---
 
 EXPERIMENTS = {
     "exp1": Exp1_PureVsHybrid,
@@ -2451,7 +2360,7 @@ EXPERIMENTS = {
     "exp6": Exp6_Baseline,
 }
 
-# 别名映射（兼容旧命令）
+# Alias mapping (legacy command compatibility) / 别名映射（兼容旧命令）
 EXPERIMENT_ALIASES = {
     "pure_hybrid": "exp1",
     "window": "exp2",
@@ -2465,44 +2374,42 @@ EXPERIMENT_ALIASES = {
 }
 
 
+# Print usage instructions / 打印使用说明
 def print_usage():
-    """打印使用说明 / Print usage instructions"""
     print("""
-博弈论 LLM 研究实验脚本 v17
 Game Theory LLM Research Experiments v17
 ==========================================
 
-用法 / Usage:
+Usage:
   python research.py <experiment> [options]
 
-实验列表 / Experiments:
-  exp1          - Pure vs Hybrid LLM (LLM自己分析 vs 代码辅助)
-  exp2          - Memory Window (记忆视窗: 5/10/20/全部)
+Experiments:
+  exp1          - Pure vs Hybrid LLM
+  exp2          - Memory Window (5/10/20/full)
   exp3          - Multi-LLM Comparison (DeepSeek/OpenAI/Gemini)
-  exp4          - Cheap Talk 3-way (3 LLM Round-Robin 语言交流)
-  exp4b         - Cheap Talk 1v1 (指定双方 provider)
-  exp5          - Group Dynamics (3 LLM + 8 经典策略 = 11 agents)
-  exp5b         - Group Dynamics Multi (3 LLM + 8 经典策略 = 11 agents)
-  exp6          - Baseline (LLM vs 9 种经典策略)
-  all           - Run all experiments (运行全部)
+  exp4          - Cheap Talk 3-way (3 LLM Round-Robin)
+  exp4b         - Cheap Talk 1v1 (specify both providers)
+  exp5          - Group Dynamics (3 LLM + 8 classic = 11 agents)
+  exp5b         - Group Dynamics Multi (3 LLM + 8 classic = 11 agents)
+  exp6          - Baseline (LLM vs 9 classic strategies)
+  all           - Run all experiments
 
-旧命令兼容 / Legacy aliases:
+Legacy aliases:
   pure_hybrid -> exp1,  window -> exp2,  multi_llm -> exp3
   cheap_talk -> exp4,   cheap_talk_1v1 -> exp4b
   group_single -> exp5, group/group_multi -> exp5b, baseline -> exp6
 
-选项 / Options:
+Options:
   --provider    LLM provider (deepseek/openai/gemini)  [default: deepseek]
   --provider1   exp4b Player1 model                    [default: --provider]
   --provider2   exp4b Player2 model                    [default: --provider]
-  --repeats     Number of repeats (重复次数)            [default: 3]
-  --rounds      Rounds per game (每次轮数)              [default: 20]
+  --repeats     Number of repeats                      [default: 3]
+  --rounds      Rounds per game                        [default: 20]
   --games       Game type (pd/snowdrift/stag_hunt/all) [default: all]
 
-帮助 / Help:
   -h, --help    Show this help message
 
-示例 / Examples:
+Examples:
   python research.py exp1
   python research.py exp4                          # 3 LLM round-robin
   python research.py exp4b --provider1 openai --provider2 gemini
@@ -2514,7 +2421,7 @@ Game Theory LLM Research Experiments v17
 def main():
     if len(sys.argv) < 2:
         experiment = "all"
-        print("未指定实验，默认运行全部实验...")
+        print("No experiment specified, running all...")
     else:
         experiment = sys.argv[1].lower()
 
@@ -2522,10 +2429,10 @@ def main():
             print_usage()
             return
 
-    # 转换别名
+    # Convert aliases / 转换别名
     experiment = EXPERIMENT_ALIASES.get(experiment, experiment)
 
-    # 解析参数
+    # Parse arguments / 解析参数
     provider = DEFAULT_CONFIG["provider"]
     n_repeats = DEFAULT_CONFIG["n_repeats"]
     rounds = DEFAULT_CONFIG["rounds"]
@@ -2533,7 +2440,7 @@ def main():
     n_agents = 10
     provider1 = None
     provider2 = None
-    providers = None  # for multi-provider experiments (exp6)
+    providers = None  # For multi-provider experiments (exp6)
 
     i = 2
     while i < len(sys.argv):
@@ -2574,13 +2481,13 @@ def main():
         else:
             i += 1
 
-    # 创建结果管理器
+    # Create result manager / 创建结果管理器
     result_manager = ResultManager()
 
     provider1 = provider1 if provider1 else provider
     provider2 = provider2 if provider2 else provider
 
-    # 公共参数
+    # Common parameters / 公共参数
     common_kwargs = {
         "provider": provider,
         "n_repeats": n_repeats,
@@ -2593,8 +2500,8 @@ def main():
     if providers:
         common_kwargs["providers"] = providers
 
-    # 保存实验配置（显示用 normalize 后的名称）
-    # exp5b 固定 3 LLM + 8 Classic = 11 agents
+    # Save experiment config / 保存实验配置
+    # exp5b fixed 3 LLM + 8 Classic = 11 agents
     config_n_agents = 11 if experiment == "exp5b" else n_agents
     config = {
         "experiment": experiment,
@@ -2609,30 +2516,30 @@ def main():
     }
     result_manager.save_config(config)
 
-    # 运行实验
+    # Run experiments / 运行实验
     all_results = {}
 
-    # 确定要运行的实验列表
+    # Determine experiments to run / 确定要运行的实验列表
     if experiment == "all":
         exp_to_run = list(EXPERIMENTS.keys())
     elif experiment in EXPERIMENTS:
         exp_to_run = [experiment]
     else:
-        print(f"未知实验: {experiment}")
+        print(f"Unknown experiment: {experiment}")
         print_usage()
         return
 
-    # 按顺序运行实验
+    # Run experiments in order / 按顺序运行实验
     for exp_name in exp_to_run:
         ExpClass = EXPERIMENTS[exp_name]
         exp = ExpClass(result_manager, **common_kwargs)
         results = exp.run()
         all_results[exp_name] = results
 
-    # 保存汇总
+    # Save summary / 保存汇总
     result_manager.save_summary(all_results)
 
-    print_separator("实验完成")
+    print_separator("All experiments completed")
     print(f"Results dir: {result_manager.root_dir}")
     print(f"Total experiments: {len(all_results)}")
 
