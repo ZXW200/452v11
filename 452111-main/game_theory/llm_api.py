@@ -49,10 +49,10 @@ DEFAULT_CONFIG = {
         "base_url": "https://hiapi.online/v1",
         "model": "gpt-4o-mini",
     },
-    "moonshot": {
+    "gemini": {
         "api_key": "",
-        "base_url": "https://hiapi.online/v1",
-        "model": "gemini-3-flash-preview",
+        "base_url": "https://generativelanguage.googleapis.com",
+        "model": "gemini-2.0-flash",
     },
     "deepseek": {
         "api_key": "",
@@ -83,7 +83,6 @@ def get_api_key(provider: str) -> str:
     env_keys = {
         "openai": "OPENAI_API_KEY",
         "gemini": "GEMINI_API_KEY",
-        "moonshot": "GEMINI_API_KEY",  # moonshot 使用 GEMINI_API_KEY
         "deepseek": "DEEPSEEK_API_KEY",
     }
     if provider in env_keys:
@@ -107,16 +106,10 @@ class LLMClient:
     避免每次请求都进行 TCP 握手和 SSL 验证（节省约 0.2~0.5秒/请求）
     """
 
-    # provider 别名映射（用户输入 → 实际调用）
-    PROVIDER_ALIASES = {
-        "gemini": "moonshot",  # gemini 使用 moonshot 代理
-    }
-
     def __init__(self, provider: str = None, session: requests.Session = None):
         self.config = load_config()
         provider = provider or self.config.get("default_provider", "deepseek")
-        # 应用别名映射
-        self.provider = self.PROVIDER_ALIASES.get(provider, provider)
+        self.provider = provider
         # 默认使用全局共享的 Session，复用 TCP 连接
         # 也可传入自定义 session
         self.session = session or get_shared_session()

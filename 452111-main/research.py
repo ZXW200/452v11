@@ -54,19 +54,6 @@ from game_theory.simulation import AgentState, GameSimulation
 # ============================================================
 # 全局配置
 # ============================================================
-def normalize_provider_name(provider: str) -> str:
-    """统一 provider 显示名称（用于输出文件/图片）"""
-    name_map = {
-        "moonshot": "gemini",  # moonshot 显示为 gemini
-    }
-    return name_map.get(provider, provider)
-
-def resolve_provider_name(provider: str) -> str:
-    """将用户输入的 provider 转换为实际 API 名称"""
-    name_map = {
-        "gemini": "moonshot",  # 用户输入 gemini，实际调用 moonshot API
-    }
-    return name_map.get(provider, provider)
 GAME_NAMES_CN = {
     "prisoners_dilemma": "囚徒困境",
     "snowdrift": "雪堆博弈",
@@ -600,8 +587,7 @@ def plot_cooperation_comparison(
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
-    # 对标签应用 normalize_provider_name
-    labels = [normalize_provider_name(k) for k in data.keys()]
+    labels = list(data.keys())
 
     # 得分图
     means = [d["payoff"]["mean"] for d in data.values()]
@@ -691,7 +677,7 @@ class Exp1_PureVsHybrid(BaseExperiment):
         print_separator(f"实验1: {self.description}")
         print("Pure:   LLM 自己从历史分析对手")
         print("Hybrid: 代码分析好告诉 LLM")
-        print(f"Provider: {normalize_provider_name(self.provider)} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
+        print(f"Provider: {self.provider} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
 
@@ -773,7 +759,7 @@ class Exp1_PureVsHybrid(BaseExperiment):
                             "opp_history": [a.name for a in opp_history],
                             "llm_responses": llm_strategy.raw_responses.copy(),
                         }
-                        self.result_manager.save_detail(f"exp1_{game_name}_{mode}", game_name, normalize_provider_name(self.provider), trial + 1, self.rounds, detail_data)
+                        self.result_manager.save_detail(f"exp1_{game_name}_{mode}", game_name, self.provider, trial + 1, self.rounds, detail_data)
 
                         print(f"Payoff: {llm_payoff:.1f}, Coop rate: {coop_rate:.1%}, Parse: {success_rate:.0%}")
 
@@ -795,7 +781,7 @@ class Exp1_PureVsHybrid(BaseExperiment):
             all_results[game_name] = game_results
 
             self.result_manager.save_json(game_name, "exp1_pure_vs_hybrid", game_results)
-            self.result_manager.save_round_records("exp1", game_name, normalize_provider_name(self.provider), all_round_records)
+            self.result_manager.save_round_records("exp1", game_name, self.provider, all_round_records)
 
             fig = plot_cooperation_comparison(game_results, "Pure vs Hybrid", game_name)
             self.result_manager.save_figure(game_name, "exp1_pure_vs_hybrid", fig)
@@ -845,7 +831,7 @@ class Exp2_MemoryWindow(BaseExperiment):
     def run(self) -> Dict:
         print_separator(f"实验2: {self.description}")
         print(f"测试不同历史记忆长度: {self.windows}")
-        print(f"Provider: {normalize_provider_name(self.provider)} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
+        print(f"Provider: {self.provider} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
 
@@ -923,7 +909,7 @@ class Exp2_MemoryWindow(BaseExperiment):
             all_results[game_name] = window_results
 
             self.result_manager.save_json(game_name, "exp2_memory_window", window_results)
-            self.result_manager.save_round_records("exp2", game_name, normalize_provider_name(self.provider), all_round_records)
+            self.result_manager.save_round_records("exp2", game_name, self.provider, all_round_records)
 
             fig = plot_cooperation_comparison(window_results, "记忆视窗对比", game_name)
             self.result_manager.save_figure(game_name, "exp2_memory_window", fig)
@@ -962,14 +948,14 @@ class Exp3_MultiLLM(BaseExperiment):
     def __init__(self, result_manager: ResultManager, **kwargs):
         super().__init__(result_manager, **kwargs)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
-        self.providers = [resolve_provider_name(p) for p in raw_providers]
+        self.providers = list(raw_providers)
         if not self.providers:
             raise ValueError("Exp3 requires at least one provider")
 
     def run(self) -> Dict:
         print_separator(f"实验3: {self.description}")
         # 显示时应用 normalize
-        display_providers = [normalize_provider_name(p) for p in self.providers]
+        display_providers = list(self.providers)
         print(f"对比 LLM: {display_providers}")
         print(f"Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
@@ -983,7 +969,7 @@ class Exp3_MultiLLM(BaseExperiment):
             all_round_records = []
 
             for provider in self.providers:
-                display_name = normalize_provider_name(provider)
+                display_name = provider
                 print(f"\n  Provider: {display_name.upper()}")
 
                 payoffs = []
@@ -1094,7 +1080,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
     def __init__(self, result_manager: ResultManager, **kwargs):
         super().__init__(result_manager, **kwargs)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
-        self.providers = [resolve_provider_name(p) for p in raw_providers]
+        self.providers = list(raw_providers)
         if len(self.providers) < 2:
             raise ValueError("Exp4 requires at least 2 providers for pairwise comparison")
 
@@ -1102,7 +1088,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
         print_separator(f"实验4: {self.description}")
         print("对比: 无交流 vs 有语言交流 (Round-Robin)")
         # 显示时应用 normalize
-        display_providers = [normalize_provider_name(p) for p in self.providers]
+        display_providers = list(self.providers)
         print(f"Providers: {display_providers} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
@@ -1122,7 +1108,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
             all_round_records = []
 
             for provider in self.providers:
-                display_name = normalize_provider_name(provider)
+                display_name = provider
                 results["no_talk"][display_name] = []
                 results["cheap_talk"][display_name] = []
                 coop_rates["no_talk"][display_name] = []
@@ -1142,7 +1128,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
 
                         llms = {}
                         for provider in self.providers:
-                            display_name = normalize_provider_name(provider)
+                            display_name = provider
                             llms[provider] = LLMStrategy(
                                 provider=provider,
                                 mode="hybrid",
@@ -1151,9 +1137,9 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                                 agent_name=f"Player({display_name})",
                             )
 
-                        total_payoffs = {normalize_provider_name(p): 0 for p in self.providers}
-                        histories = {normalize_provider_name(p): [] for p in self.providers}
-                        messages = {normalize_provider_name(p): [] for p in self.providers}
+                        total_payoffs = {p: 0 for p in self.providers}
+                        histories = {p: [] for p in self.providers}
+                        messages = {p: [] for p in self.providers}
 
                         round_details = []
 
@@ -1163,8 +1149,8 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                             for p1, p2 in pairs:
                                 llm1 = llms[p1]
                                 llm2 = llms[p2]
-                                d1 = normalize_provider_name(p1)
-                                d2 = normalize_provider_name(p2)
+                                d1 = p1
+                                d2 = p2
 
                                 msg1 = ""
                                 msg2 = ""
@@ -1210,8 +1196,8 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                                 })
 
                             for p1, p2 in pairs:
-                                d1 = normalize_provider_name(p1)
-                                d2 = normalize_provider_name(p2)
+                                d1 = p1
+                                d2 = p2
                                 for match in round_data["matches"]:
                                     if match["p1"] == d1 and match["p2"] == d2:
                                         histories[d1].append(Action[match["p1_action"]])
@@ -1227,7 +1213,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
 
                         coop_rate_dict = {}
                         for provider in self.providers:
-                            display_name = normalize_provider_name(provider)
+                            display_name = provider
                             coop_rate = compute_cooperation_rate(histories[display_name])
                             results[mode][display_name].append(total_payoffs[display_name])
                             coop_rates[mode][display_name].append(coop_rate)
@@ -1258,7 +1244,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
                         continue
 
             game_results = {}
-            display_providers = [normalize_provider_name(p) for p in self.providers]
+            display_providers = list(self.providers)
             for mode in ["no_talk", "cheap_talk"]:
                 mode_results = {"providers": {}}
                 for display_name in display_providers:
@@ -1297,7 +1283,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
     def _generate_transcript(self, game_name: str, detailed_trials: Dict) -> str:
         """生成3 LLM Cheap Talk 交互记录"""
         cn_name = GAME_NAMES_CN.get(game_name, game_name)
-        display_providers = [normalize_provider_name(p) for p in self.providers]
+        display_providers = list(self.providers)
 
         lines = []
         lines.append("=" * 70)
@@ -1366,7 +1352,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
             "gemini": "#FF9800",
         }
 
-        display_providers = [normalize_provider_name(p) for p in self.providers]
+        display_providers = list(self.providers)
 
         ax1 = axes[0]
         x = np.arange(len(display_providers))
@@ -1410,7 +1396,7 @@ class Exp4_CheapTalk3LLM(BaseExperiment):
     def _print_summary(self, results: Dict):
         """打印3 LLM Cheap Talk 汇总"""
         print_separator("汇总: Cheap Talk 三方对战 (3 LLM)")
-        display_providers = [normalize_provider_name(p) for p in self.providers]
+        display_providers = list(self.providers)
 
         for game_name, stats in results.items():
             cn_name = GAME_NAMES_CN.get(game_name, game_name)
@@ -1449,8 +1435,8 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
     def run(self) -> Dict:
         print_separator(f"实验4b: {self.description}")
         print("对比: 无交流 vs 有语言交流 (LLM vs LLM)")
-        display_p1 = normalize_provider_name(self.provider1)
-        display_p2 = normalize_provider_name(self.provider2)
+        display_p1 = self.provider1
+        display_p2 = self.provider2
         if display_p1 == display_p2:
             print(f"Provider: {display_p1} vs {display_p2} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
         else:
@@ -1659,8 +1645,8 @@ class Exp4b_CheapTalk1v1(BaseExperiment):
     def _generate_transcript(self, game_name: str, detailed_trials: Dict) -> str:
         """生成一对一 Cheap Talk 交互记录"""
         cn_name = GAME_NAMES_CN.get(game_name, game_name)
-        display_p1 = normalize_provider_name(self.provider1)
-        display_p2 = normalize_provider_name(self.provider2)
+        display_p1 = self.provider1
+        display_p2 = self.provider2
 
         lines = []
         lines.append("=" * 70)
@@ -1793,7 +1779,7 @@ class Exp5_GroupDynamics(BaseExperiment):
 
     def run(self) -> Dict:
         print_separator(f"实验5: {self.description}")
-        print(f"Agent数量: {self.n_agents} | Provider: {normalize_provider_name(self.provider)}")
+        print(f"Agent数量: {self.n_agents} | Provider: {self.provider}")
         print(f"网络: {self.networks} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
@@ -1960,14 +1946,14 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
     def __init__(self, result_manager: ResultManager, **kwargs):
         super().__init__(result_manager, **kwargs)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
-        self.providers = [resolve_provider_name(p) for p in raw_providers]
+        self.providers = list(raw_providers)
         if not self.providers:
             raise ValueError("Exp5b requires at least one provider")
         self.networks = kwargs.get("networks", ["fully_connected", "small_world"])
 
     def run(self) -> Dict:
         print_separator(f"实验5b: {self.description}")
-        display_providers = [normalize_provider_name(p) for p in self.providers]
+        display_providers = list(self.providers)
         n_total = len(self.providers) + 8  # 3 LLM + 8 Classic
         print(f"Agent数量: {n_total} ({len(self.providers)} LLM + 8 Classic) | Providers: {display_providers}")
         print(f"网络: {self.networks} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
@@ -2004,7 +1990,7 @@ class Exp5b_GroupDynamicsMulti(BaseExperiment):
                         # LLM agents: 使用匿名名字，每个 provider 1个
                         agent_idx = 1
                         for provider in self.providers:
-                            display_name = normalize_provider_name(provider)
+                            display_name = provider
                             anon_name = f"Player_{agent_idx}"
                             real_name = f"LLM_{display_name}"
                             strategy_map[anon_name] = real_name
@@ -2279,11 +2265,11 @@ class Exp6_Baseline(BaseExperiment):
     def __init__(self, result_manager: ResultManager, **kwargs):
         super().__init__(result_manager, **kwargs)
         raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
-        self.providers = [resolve_provider_name(p) for p in raw_providers]
+        self.providers = list(raw_providers)
 
     def run(self) -> Dict:
         print_separator(f"实验6: {self.description}")
-        display_providers = [normalize_provider_name(p) for p in self.providers]
+        display_providers = list(self.providers)
         print(f"LLM Providers: {display_providers}")
         print(f"LLM vs 经典策略: {list(self.BASELINES.keys())}")
         print(f"Repeats: {self.n_repeats} | Rounds: {self.rounds}")
@@ -2298,7 +2284,7 @@ class Exp6_Baseline(BaseExperiment):
             all_round_records = []
 
             for provider in self.providers:
-                display_name = normalize_provider_name(provider)
+                display_name = provider
                 print(f"\n  Provider: {display_name.upper()}")
 
                 baseline_results = {}
@@ -2619,10 +2605,8 @@ def main():
     # 创建结果管理器
     result_manager = ResultManager()
 
-    # 转换 provider 名称（gemini -> moonshot）
-    provider = resolve_provider_name(provider)
-    provider1 = resolve_provider_name(provider1) if provider1 else provider
-    provider2 = resolve_provider_name(provider2) if provider2 else provider
+    provider1 = provider1 if provider1 else provider
+    provider2 = provider2 if provider2 else provider
 
     # 公共参数
     common_kwargs = {
@@ -2642,13 +2626,13 @@ def main():
     config_n_agents = 11 if experiment == "exp5b" else n_agents
     config = {
         "experiment": experiment,
-        "provider": normalize_provider_name(provider),
+        "provider": provider,
         "n_repeats": n_repeats,
         "rounds": rounds,
         "games": games or list(GAME_REGISTRY.keys()),
         "n_agents": config_n_agents,
-        "provider1": normalize_provider_name(provider1 if provider1 else provider),
-        "provider2": normalize_provider_name(provider2 if provider2 else provider),
+        "provider1": provider1 if provider1 else provider,
+        "provider2": provider2 if provider2 else provider,
         "timestamp": result_manager.timestamp,
     }
     result_manager.save_config(config)
