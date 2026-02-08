@@ -12,7 +12,6 @@ from .games import (
     PRISONERS_DILEMMA,
     SNOWDRIFT,
     STAG_HUNT,
-    HARMONY,
     GAME_REGISTRY,
     get_payoff,
     get_payoff_description,

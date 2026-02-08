@@ -77,7 +77,6 @@ GAME_NAMES_EN = {
     "prisoners_dilemma": "Prisoner's Dilemma",
     "snowdrift": "Snowdrift",
     "stag_hunt": "Stag Hunt",
-    "harmony": "Harmony",
 }
 
 NETWORK_NAMES_CN = {
@@ -118,7 +117,6 @@ class ResultManager:
         │   ├── pd/                 # 囚徒困境
         │   ├── snowdrift/          # 雪堆博弈
         │   ├── stag_hunt/          # 猎鹿博弈
-        │   └── harmony/            # 和谐博弈
         │       └── {condition}_trial{N}.json
         ├── rounds/                 # 轮次数据（统一CSV格式）
         │   └── {game}_{condition}_rounds.csv
@@ -2540,7 +2538,7 @@ def print_usage():
   --provider2   exp4b 实验的 Player2 模型              [默认: 同 --provider]
   --repeats     重复次数                               [默认: 3]
   --rounds      每次轮数                               [默认: 20]
-  --games       指定博弈 (pd/snowdrift/stag_hunt/harmony/all) [默认: all]
+  --games       指定博弈 (pd/snowdrift/stag_hunt/all) [默认: all]
   --n_agents    群体动力学实验的智能体数量             [默认: 10]
 
 帮助:

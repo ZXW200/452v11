@@ -80,20 +80,6 @@ STAG_HUNT = GameConfig(
     description_cn="猎鹿博弈：合作产生最高收益但需要信任。安全的背叛给出有保障但较低的收益。"
 )
 
-# 和谐博弈 Harmony Game
-# R > T, R > S > P (合作总是最优)
-HARMONY = GameConfig(
-    name="Harmony Game",
-    payoff_matrix={
-        (Action.COOPERATE, Action.COOPERATE): (4, 4),
-        (Action.COOPERATE, Action.DEFECT): (2, 3),
-        (Action.DEFECT, Action.COOPERATE): (3, 2),
-        (Action.DEFECT, Action.DEFECT): (1, 1),
-    },
-    description="Harmony: Cooperation is always the best strategy regardless of opponent.",
-    description_cn="和谐博弈：无论对手如何，合作总是最佳策略。"
-)
-
 
 # ============================================================
 # 博弈注册表 / Game Registry
@@ -103,7 +89,6 @@ GAME_REGISTRY = {
     "prisoners_dilemma": PRISONERS_DILEMMA,
     "snowdrift": SNOWDRIFT,
     "stag_hunt": STAG_HUNT,
-    "harmony": HARMONY,
 }
 
 

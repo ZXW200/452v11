@@ -2,7 +2,7 @@
 
 博弈论 LLM 多智能体研究框架 v0.5.2 (v16)
 
-研究大语言模型在经典博弈场景（囚徒困境、雪堆博弈、猎鹿博弈、和谐博弈）中的决策行为。
+研究大语言模型在经典博弈场景（囚徒困境、雪堆博弈、猎鹿博弈）中的决策行为。
 
 ## 安装依赖
 
@@ -64,7 +64,7 @@ python game_theory/llm_api.py setup
 | `--provider2` | exp4b 的 Player2 模型 | 同 --provider |
 | `--repeats` | 重复次数 | 3 |
 | `--rounds` | 每次轮数 | 20 |
-| `--games` | 博弈类型 (pd/snowdrift/stag_hunt/harmony/all) | all |
+| `--games` | 博弈类型 (pd/snowdrift/stag_hunt/all) | all |
 | `--n_agents` | 群体动力学智能体数量（exp5b 固定为 11） | 10 |
 | `-h, --help` | 显示帮助信息 | - |
 
@@ -135,7 +135,6 @@ results/{timestamp}/
 | 囚徒困境 | pd | Prisoner's Dilemma |
 | 雪堆博弈 | snowdrift | Snowdrift Game |
 | 猎鹿博弈 | stag_hunt | Stag Hunt |
-| 和谐博弈 | harmony | Harmony Game |
 
 ## 支持的 LLM
 
