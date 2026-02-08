@@ -1768,18 +1768,22 @@ def _analyze_promise_keeping(messages: List[str], actions: List[Action]) -> floa
 # ============================================================
 
 class Exp5_GroupDynamics(BaseExperiment):
-    """实验5: 群体动力学 (单 Provider)"""
+    """实验5: 群体动力学"""
     name = "exp5"
-    description = "群体动力学 (单 Provider)"
+    description = "群体动力学"
 
     def __init__(self, result_manager: ResultManager, **kwargs):
         super().__init__(result_manager, **kwargs)
-        self.n_agents = kwargs.get("n_agents", 10)
+        raw_providers = kwargs.get("providers", ["deepseek", "openai", "gemini"])
+        self.providers = list(raw_providers)
+        if not self.providers:
+            raise ValueError("Exp5 requires at least one provider")
         self.networks = kwargs.get("networks", ["fully_connected", "small_world"])
 
     def run(self) -> Dict:
         print_separator(f"实验5: {self.description}")
-        print(f"Agent数量: {self.n_agents} | Provider: {self.provider}")
+        n_total = len(self.providers) + 8  # LLM + 8 Classic
+        print(f"Agent数量: {n_total} ({len(self.providers)} LLM + 8 Classic) | Providers: {self.providers}")
         print(f"网络: {self.networks} | Repeats: {self.n_repeats} | Rounds: {self.rounds}")
 
         all_results = {}
@@ -1807,33 +1811,34 @@ class Exp5_GroupDynamics(BaseExperiment):
 
                         strategies = []
 
-                        n_llm = self.n_agents // 2
-                        n_classic = self.n_agents - n_llm
+                        # 固定分配: 3 LLM (每个 provider 1个) + 8 经典策略 = 11 agents
+                        agent_idx = 1
 
-                        # LLM agents: 使用匿名名字 Player_1, Player_2, ...
-                        for k in range(n_llm):
-                            anon_name = f"Player_{k + 1}"
-                            real_name = f"LLM_{k + 1}"
+                        # LLM agents: 使用匿名名字，每个 provider 1个
+                        for provider in self.providers:
+                            anon_name = f"Player_{agent_idx}"
+                            real_name = f"LLM_{provider}"
                             strategy_map[anon_name] = real_name
                             strategies.append((
                                 anon_name,
-                                LLMStrategy(provider=self.provider, mode="hybrid", game_config=game_config)
+                                LLMStrategy(provider=provider, mode="hybrid", game_config=game_config)
                             ))
+                            agent_idx += 1
 
-                        # Classic agents: 使用匿名名字，隐藏真实策略
+                        # Classic agents: 8 个不同策略，使用匿名名字
                         classic_classes = [
-                            TitForTat, AlwaysCooperate, AlwaysDefect,
-                            Pavlov, GrimTrigger, RandomStrategy
+                            TitForTat, TitForTwoTats, GenerousTitForTat, Extort2,
+                            Pavlov, GrimTrigger, AlwaysDefect, RandomStrategy
                         ]
-                        for k in range(n_classic):
-                            StrategyClass = classic_classes[k % len(classic_classes)]
-                            anon_name = f"Player_{n_llm + k + 1}"
-                            real_name = f"{StrategyClass.__name__}_{k + 1}"
+                        for k, StrategyClass in enumerate(classic_classes):
+                            anon_name = f"Player_{agent_idx}"
+                            real_name = StrategyClass.__name__
                             strategy_map[anon_name] = real_name
                             strategies.append((
                                 anon_name,
                                 StrategyClass()
                             ))
+                            agent_idx += 1
 
                         agent_names = [name for name, _ in strategies]
                         NetworkClass = NETWORK_REGISTRY[network_name]
